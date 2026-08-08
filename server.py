@@ -8,7 +8,8 @@ import sqlite3
 import datetime
 import urllib.request
 import urllib.parse
-from flask import Flask, request, jsonify, send_from_directory
+from functools import wraps
+from flask import Flask, request, jsonify, send_from_directory, session
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -28,7 +29,29 @@ FRONTEND_FILENAME = "index.html"
 DB_PATH = os.path.join(BASE_DIR, "foundermind.db")
 
 app = Flask(__name__, static_folder=None)
-CORS(app)
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "foundermind_super_secret_key_123")
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False  # Required for http://localhost / 127.0.0.1
+app.config['SESSION_PERMANENT'] = True
+app.secret_key = app.config['SECRET_KEY']
+CORS(app, supports_credentials=True)
+
+try:
+    from flask_bcrypt import Bcrypt
+    bcrypt = Bcrypt(app)
+    def hash_password(password: str) -> str:
+        return bcrypt.generate_password_hash(password).decode("utf-8")
+    def check_password(password_hash: str, password: str) -> bool:
+        return bcrypt.check_password_hash(password_hash, password)
+except ImportError:
+    print("[Auth Warning]: flask_bcrypt not installed. Falling back to hashlib.sha256")
+    import hashlib
+    bcrypt = None
+    def hash_password(password: str) -> str:
+        return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    def check_password(password_hash: str, password: str) -> bool:
+        return hashlib.sha256(password.encode("utf-8")).hexdigest() == password_hash
 
 # Keys
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -64,6 +87,14 @@ def run_async(coro_or_func, *args, **kwargs):
         finally:
             loop.close()
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user_id" not in session:
+            return jsonify({"error": "Unauthorized", "authenticated": False}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
 # DB
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -73,6 +104,7 @@ def get_db_connection():
 def init_db():
     with get_db_connection() as conn:
         c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
         c.execute("""CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, text TEXT NOT NULL, priority TEXT DEFAULT 'med', done INTEGER DEFAULT 0, created_at TEXT NOT NULL)""")
         c.execute("""CREATE TABLE IF NOT EXISTS meetings (id TEXT PRIMARY KEY, title TEXT NOT NULL, date TEXT DEFAULT '', time TEXT DEFAULT '', with_ TEXT DEFAULT '', created_at TEXT NOT NULL)""")
         c.execute("""CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT DEFAULT 'Other', icon TEXT DEFAULT 'doc', created_at TEXT NOT NULL)""")
@@ -196,7 +228,7 @@ def classify_intent(message):
         return "complex"
     return "simple"
 
-def ask_cascadeflow(user_message, long_term_memories=""):
+def ask_cascadeflow(user_message, long_term_memories="", current_user="Founder"):
     global conversation_history
     if cascade_agent is None and groq_client is None:
         log_audit("Cascadeflow call skipped -- no API key")
@@ -213,7 +245,7 @@ def ask_cascadeflow(user_message, long_term_memories=""):
     meeting_ctx = ("\n\nUPCOMING MEETINGS:\n" + "\n".join(f"- {m['title']} on {m['date'] or 'TBD'} at {m['time'] or 'TBD'} with {m['with_'] or '--'}" for m in upcoming_meetings)) if upcoming_meetings else ""
 
     mem_text = long_term_memories[:3000] if long_term_memories else "No past session memories yet."
-    system_prompt = f"""You are FounderMind -- an elite AI Chief of Staff for startup founders.
+    system_prompt = f"""You are FounderMind, an AI Chief of Staff. You are currently assisting {current_user}, the Founder & CEO. Address them by their name ({current_user}) when asked "What is my name?" or during natural conversation.
 You have TWO sources of memory:
 1. LONG-TERM MEMORIES (from past sessions):
 {mem_text}
@@ -221,6 +253,7 @@ You have TWO sources of memory:
 {task_ctx}
 {meeting_ctx}
 YOUR RULES:
+- The user's name is {current_user}. If asked "What is my name?" or "Who am I?", explicitly tell them their name is {current_user}.
 - ALWAYS use memories to answer questions about the founder
 - Be sharp, direct, strategic -- like a trusted Chief of Staff
 - Reference past context naturally in every response
@@ -313,9 +346,107 @@ YOUR RULES:
                 return {"reply": reply, "tokens": tokens, "cost_usd": 0.0001, "cost_saved_usd": 0.0, "latency_ms": latency_ms, "model_used": "groq/llama-3.3-70b-versatile", "model_alias": "70B Heavy Model", "is_fast_model": False, "cascaded": False, "error": False}
             except Exception as ge:
                 err_text = f"{err_text} | Fallback Error: {ge}"
-
         log_audit(f"Cascadeflow call failed -- {err_text[:80]}")
         return {"reply": f"Cascadeflow Error: {err_text}", "tokens": 0, "cost_usd": 0.0, "cost_saved_usd": 0.0, "latency_ms": latency_ms, "model_used": "error", "model_alias": "error", "is_fast_model": False, "cascaded": False, "error": True}
+
+
+
+
+
+# ══════════════════════════════════════════════════════════
+# AUTHENTICATION ENDPOINTS
+# ══════════════════════════════════════════════════════════
+@app.route("/api/register", methods=["POST"])
+def register():
+    data = get_json_body()
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
+    password = (data.get("password") or "").strip()
+
+    if not username or not email or not password:
+        return jsonify({"error": "Username, email, and password are required"}), 400
+
+    if len(password) < 4:
+        return jsonify({"error": "Password must be at least 4 characters"}), 400
+
+    password_hash = hash_password(password)
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+                (username, email, password_hash)
+            )
+            conn.commit()
+            user_id = cursor.lastrowid
+
+        session["user_id"] = user_id
+        session["username"] = username
+        session.modified = True
+        log_audit(f"User registered -- {username}")
+
+        return jsonify({
+            "status": "registered",
+            "authenticated": True,
+            "user": {"id": user_id, "username": username, "email": email}
+        }), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Username or email already exists"}), 409
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = get_json_body()
+    identifier = (data.get("username") or data.get("email") or "").strip()
+    password = (data.get("password") or "").strip()
+
+    if not identifier or not password:
+        return jsonify({"error": "Username/Email and password are required"}), 400
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, username, email, password_hash FROM users WHERE username = ? OR email = ?",
+            (identifier, identifier)
+        )
+        user = cursor.fetchone()
+
+    if not user or not check_password(user["password_hash"], password):
+        return jsonify({"error": "Invalid username/email or password"}), 401
+
+    session["user_id"] = user["id"]
+    session["username"] = user["username"]
+    session.modified = True
+    log_audit(f"User logged in -- {user['username']}")
+
+    return jsonify({
+        "status": "logged_in",
+        "authenticated": True,
+        "user": {"id": user["id"], "username": user["username"], "email": user["email"]}
+    })
+
+
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    username = session.get("username", "user")
+    session.clear()
+    session.modified = True
+    log_audit(f"User logged out -- {username}")
+    return jsonify({"status": "logged_out", "authenticated": False})
+
+
+@app.route("/api/me", methods=["GET"])
+def get_current_user():
+    if "user_id" in session:
+        return jsonify({
+            "authenticated": True,
+            "user_id": session["user_id"],
+            "username": session.get("username")
+        })
+    return jsonify({"authenticated": False})
 
 
 @app.route("/")
@@ -328,15 +459,18 @@ def index():
 
 
 @app.route("/chat", methods=["POST"])
+@login_required
 def chat():
     data = get_json_body()
     user_message = (data.get("message") or "").strip()
     if not user_message:
         return jsonify({"error": "No message"}), 400
 
-    print(f"\n[User]: {user_message}")
+    current_user = session.get("username") or (data.get("username") if isinstance(data, dict) else None) or "Founder"
+
+    print(f"\n[{current_user}]: {user_message}")
     long_term = recall_memories_hindsight(user_message)
-    result = ask_cascadeflow(user_message, long_term)
+    result = ask_cascadeflow(user_message, long_term, current_user=current_user)
     reply, had_error = result["reply"], result["error"]
     print(f"[FounderMind]: {reply[:120]}...")
 
@@ -386,6 +520,7 @@ def chat():
 
 
 @app.route("/reset", methods=["POST"])
+@login_required
 def reset_session():
     global conversation_history
     conversation_history = []
@@ -394,6 +529,7 @@ def reset_session():
 
 
 @app.route("/tasks", methods=["GET"])
+@login_required
 def get_tasks():
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -403,6 +539,7 @@ def get_tasks():
 
 
 @app.route("/tasks", methods=["POST"])
+@login_required
 def add_task():
     data = get_json_body()
     text = (data.get("text") or "").strip()
@@ -419,6 +556,7 @@ def add_task():
 
 
 @app.route("/tasks/<task_id>", methods=["PATCH"])
+@login_required
 def update_task(task_id):
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -437,6 +575,7 @@ def update_task(task_id):
 
 
 @app.route("/tasks/<task_id>", methods=["DELETE"])
+@login_required
 def delete_task(task_id):
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -449,6 +588,7 @@ def delete_task(task_id):
 
 
 @app.route("/meetings", methods=["GET"])
+@login_required
 def get_meetings():
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -458,6 +598,7 @@ def get_meetings():
 
 
 @app.route("/meetings", methods=["POST"])
+@login_required
 def add_meeting():
     data = get_json_body()
     title = (data.get("title") or "").strip()
@@ -476,6 +617,7 @@ def add_meeting():
 
 
 @app.route("/meetings/<meeting_id>/prep", methods=["GET"])
+@login_required
 def ai_prep_meeting(meeting_id):
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -493,6 +635,7 @@ def ai_prep_meeting(meeting_id):
 
 
 @app.route("/meetings/<meeting_id>", methods=["DELETE"])
+@login_required
 def delete_meeting(meeting_id):
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -505,6 +648,7 @@ def delete_meeting(meeting_id):
 
 
 @app.route("/documents", methods=["GET"])
+@login_required
 def get_documents():
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -514,6 +658,7 @@ def get_documents():
 
 
 @app.route("/documents", methods=["POST"])
+@login_required
 def add_document():
     data = get_json_body()
     name = (data.get("name") or "").strip()
@@ -531,6 +676,7 @@ def add_document():
 
 
 @app.route("/documents/<doc_id>", methods=["DELETE"])
+@login_required
 def delete_document(doc_id):
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -543,6 +689,7 @@ def delete_document(doc_id):
 
 
 @app.route("/memories", methods=["GET"])
+@login_required
 def get_memories():
     query = request.args.get("q", "").lower().strip()
     with get_db_connection() as conn:
@@ -556,6 +703,7 @@ def get_memories():
 
 
 @app.route("/memories/search", methods=["GET"])
+@login_required
 def search_memories_route():
     query = request.args.get("q", "").strip()
     if not query:
@@ -565,6 +713,7 @@ def search_memories_route():
 
 
 @app.route("/memories/hindsight", methods=["GET"])
+@login_required
 def sync_hindsight_memories_route():
     if not hindsight_client or not HINDSIGHT_PIPELINE_ID:
         return jsonify({"error": "Hindsight not configured", "memories": []}), 503
@@ -597,6 +746,7 @@ def sync_hindsight_memories_route():
 
 
 @app.route("/memories", methods=["POST"])
+@login_required
 def save_memory_route():
     data = get_json_body()
     text = (data.get("text") or "").strip()
@@ -614,6 +764,7 @@ def save_memory_route():
 
 
 @app.route("/memories/<mem_id>", methods=["DELETE"])
+@login_required
 def delete_memory(mem_id):
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -626,6 +777,7 @@ def delete_memory(mem_id):
 
 
 @app.route("/analytics", methods=["GET"])
+@login_required
 def get_analytics():
     fast_count = analytics_store["routing"]["fast_8b"]
     heavy_count = analytics_store["routing"]["heavy_70b"]

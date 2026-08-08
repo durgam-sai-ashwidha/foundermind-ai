@@ -346,12 +346,15 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
     </div>
 
     <!-- PROFILE -->
-    <div class="profile-chip">
-      <div class="profile-avatar">A</div>
-      <div>
-        <div class="profile-name">Ash</div>
-        <div class="profile-role">Founder &amp; CEO</div>
+    <div class="profile-chip" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;" title="Click to Logout" onclick="handleLogout()">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="profile-avatar" id="profileAvatar">?</div>
+        <div>
+          <div class="profile-name" id="profileName">Loading...</div>
+          <div class="profile-role">Founder &amp; CEO</div>
+        </div>
       </div>
+      <div style="font-size: 10px; font-weight: 600; color: #94a3b8; padding: 4px 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;">Logout</div>
     </div>
   </div>
 
@@ -657,24 +660,40 @@ function setApiBase(url){
 }
 
 async function apiGet(path){
-  const res=await fetch(API_BASE+path);
+  const res=await fetch(API_BASE+path,{credentials:'include'});
+  if(res.status===401){showAuthModal();throw new Error('401 Unauthorized');}
   if(!res.ok)throw new Error('Request failed: '+path);
   return res.json();
 }
 async function apiPost(path,body){
-  const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(body||{})});
+  if(res.status===401){showAuthModal();throw Object.assign(new Error('401 Unauthorized'),{status:401});}
   if(!res.ok)throw new Error('Request failed: '+path);
   return res.json();
 }
 async function apiPatch(path,body){
-  const res=await fetch(API_BASE+path,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const res=await fetch(API_BASE+path,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(body||{})});
+  if(res.status===401){showAuthModal();throw new Error('401 Unauthorized');}
   if(!res.ok)throw new Error('Request failed: '+path);
   return res.json();
 }
 async function apiDelete(path){
-  const res=await fetch(API_BASE+path,{method:'DELETE'});
+  const res=await fetch(API_BASE+path,{method:'DELETE',credentials:'include'});
+  if(res.status===401){showAuthModal();throw new Error('401 Unauthorized');}
   if(!res.ok)throw new Error('Request failed: '+path);
   return res.json();
+}
+
+function showAuthModal(){
+  const overlay=document.getElementById('authModalOverlay');
+  if(overlay)overlay.style.display='flex';
+}
+
+function updateProfileUI(username){
+  const avatarEl=document.getElementById('profileAvatar');
+  const nameEl=document.getElementById('profileName');
+  if(avatarEl)avatarEl.textContent=(username||'?')[0].toUpperCase();
+  if(nameEl)nameEl.textContent=username||'User';
 }
 
 async function checkHealth(){
@@ -875,7 +894,12 @@ async function sendMessage(){
     }
   }catch(err){
     removeThinking();
-    addMessage('ai','⚠️ Connection error. Check that the FounderMind server is running and the URL in Settings is correct.');
+    if(err && err.status===401 || (err && err.message && err.message.includes('401'))){
+      addMessage('ai','🔒 Your session has expired. Please log in again.');
+      showAuthModal();
+    } else {
+      addMessage('ai','⚠️ Connection error. Check that the FounderMind server is running and the URL in Settings is correct.');
+    }
   }
   btn.disabled=false;input.focus();
 }
@@ -1162,6 +1186,200 @@ function updateOverviewMemory(){
 
 renderTasks();
 renderMeetings();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  AUTHENTICATION MODAL OVERLAY                              -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="authModalOverlay" style="position: fixed; inset: 0; background: rgba(10, 10, 18, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 99999; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.3s ease;">
+  <div style="background: rgba(22, 24, 38, 0.95); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); border-radius: 16px; width: 100%; max-width: 420px; padding: 32px; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div style="font-size: 36px; margin-bottom: 8px;">🧠</div>
+      <h2 style="font-size: 22px; font-weight: 700; margin: 0 0 6px 0; background: linear-gradient(135deg, #a78bfa, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">FounderMind</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin: 0;">Sign in or create an account to access your AI Chief of Staff</p>
+    </div>
+
+    <!-- Toggle Buttons -->
+    <div style="display: flex; background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 4px; margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.05);">
+      <button id="authTabLogin" onclick="switchAuthTab('login')" style="flex: 1; padding: 8px; border: none; background: #6366f1; color: #fff; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;">Login</button>
+      <button id="authTabRegister" onclick="switchAuthTab('register')" style="flex: 1; padding: 8px; border: none; background: transparent; color: #94a3b8; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;">Register</button>
+    </div>
+
+    <!-- Error Box -->
+    <div id="authErrorMsg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 16px; text-align: center;"></div>
+
+    <!-- Form Inputs -->
+    <form id="authForm" onsubmit="handleAuthSubmit(event)">
+      <div id="usernameGroup" style="margin-bottom: 14px;">
+        <label style="display: block; font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">Username or Email</label>
+        <input type="text" id="authIdentifier" required style="width: 100%; box-sizing: border-box; padding: 10px 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff; font-size: 13px; outline: none;" placeholder="e.g. founder or founder@startup.com">
+      </div>
+
+      <div id="emailGroup" style="display: none; margin-bottom: 14px;">
+        <label style="display: block; font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">Email Address</label>
+        <input type="email" id="authEmail" style="width: 100%; box-sizing: border-box; padding: 10px 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff; font-size: 13px; outline: none;" placeholder="founder@startup.com">
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">Password</label>
+        <input type="password" id="authPassword" required style="width: 100%; box-sizing: border-box; padding: 10px 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff; font-size: 13px; outline: none;" placeholder="••••••••">
+      </div>
+
+      <button type="submit" id="authSubmitBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); transition: transform 0.1s; margin-bottom: 12px;">Sign In</button>
+      
+      <button type="button" onclick="quickDemoLogin()" style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.06); color: #cbd5e1; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;">⚡ Quick Demo Login (Instant Access)</button>
+    </form>
+  </div>
+</div>
+
+<script>
+let currentAuthMode = 'login';
+
+function switchAuthTab(mode) {
+  currentAuthMode = mode;
+  const loginTab = document.getElementById('authTabLogin');
+  const registerTab = document.getElementById('authTabRegister');
+  const emailGroup = document.getElementById('emailGroup');
+  const submitBtn = document.getElementById('authSubmitBtn');
+  const errBox = document.getElementById('authErrorMsg');
+  const identifierInput = document.getElementById('authIdentifier');
+
+  errBox.style.display = 'none';
+
+  if (mode === 'login') {
+    loginTab.style.background = '#6366f1';
+    loginTab.style.color = '#fff';
+    registerTab.style.background = 'transparent';
+    registerTab.style.color = '#94a3b8';
+    emailGroup.style.display = 'none';
+    submitBtn.textContent = 'Sign In';
+    identifierInput.placeholder = 'e.g. founder or founder@startup.com';
+  } else {
+    registerTab.style.background = '#6366f1';
+    registerTab.style.color = '#fff';
+    loginTab.style.background = 'transparent';
+    loginTab.style.color = '#94a3b8';
+    emailGroup.style.display = 'block';
+    submitBtn.textContent = 'Create Account';
+    identifierInput.placeholder = 'e.g. founder';
+  }
+}
+
+async function checkAuthState() {
+  try {
+    const resp = await fetch(API_BASE + '/api/me', { credentials: 'include' });
+    const data = await resp.json();
+    if (data.authenticated) {
+      document.getElementById('authModalOverlay').style.display = 'none';
+      updateProfileUI(data.username);
+      loadAll();
+      return true;
+    } else {
+      document.getElementById('authModalOverlay').style.display = 'flex';
+      return false;
+    }
+  } catch (err) {
+    document.getElementById('authModalOverlay').style.display = 'flex';
+    return false;
+  }
+}
+
+async function handleLogout() {
+  try {
+    await fetch(API_BASE + '/api/logout', { method: 'POST', credentials: 'include' });
+    checkAuthState();
+  } catch (e) {
+    checkAuthState();
+  }
+}
+
+async function quickDemoLogin() {
+  const errBox = document.getElementById('authErrorMsg');
+  errBox.style.display = 'none';
+  try {
+    let resp = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username: 'founder', password: 'founder123' })
+    });
+    let data = await resp.json();
+    if (!resp.ok || data.error) {
+      resp = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username: 'founder', email: 'founder@startup.com', password: 'founder123' })
+      });
+      data = await resp.json();
+    }
+    if (data.authenticated || data.status === 'registered' || data.status === 'logged_in') {
+      await checkAuthState();
+      if (typeof showPage === 'function') {
+        const chatNav = document.querySelectorAll('.nav-item')[1];
+        if (chatNav) showPage('chat', chatNav);
+      }
+    } else {
+      errBox.textContent = data.error || 'Demo login failed';
+      errBox.style.display = 'block';
+    }
+  } catch (err) {
+    errBox.textContent = 'Connection error. Please try again.';
+    errBox.style.display = 'block';
+  }
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  const errBox = document.getElementById('authErrorMsg');
+  const submitBtn = document.getElementById('authSubmitBtn');
+  errBox.style.display = 'none';
+  
+  const identifier = document.getElementById('authIdentifier').value.trim();
+  const password = document.getElementById('authPassword').value.trim();
+  
+  submitBtn.disabled = true;
+  submitBtn.style.opacity = '0.6';
+
+  try {
+    let url = '/api/login';
+    let body = { username: identifier, password: password };
+
+    if (currentAuthMode === 'register') {
+      url = '/api/register';
+      const email = document.getElementById('authEmail').value.trim();
+      body = { username: identifier, email: email, password: password };
+    }
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body)
+    });
+
+    const resData = await resp.json();
+
+    if (!resp.ok || resData.error) {
+      errBox.textContent = resData.error || 'Authentication failed';
+      errBox.style.display = 'block';
+    } else {
+      await checkAuthState();
+      if (typeof showPage === 'function') {
+        const chatNav = document.querySelectorAll('.nav-item')[1];
+        if (chatNav) showPage('chat', chatNav);
+      }
+    }
+  } catch (err) {
+    errBox.textContent = 'Connection error. Please try again.';
+    errBox.style.display = 'block';
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.style.opacity = '1';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', checkAuthState);
 </script>
 </body>
 </html>

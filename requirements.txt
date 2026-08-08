@@ -5,3 +5,4 @@ hindsight-client
 python-dotenv
 groq
 litellm
+flask-bcrypt

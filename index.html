@@ -363,7 +363,7 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
 
     <!-- OVERVIEW PAGE -->
     <div class="page active" id="page-overview">
-      <div class="page-title">Good morning, Ash 👋</div>
+      <div class="page-title">Good morning, <span id="overview-user-name">Ash</span> 👋</div>
       <div class="overview-grid-top">
         <div class="card">
           <div class="card-title">Today's Priorities <button class="card-action" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">View All</button></div>
@@ -692,8 +692,10 @@ function showAuthModal(){
 function updateProfileUI(username){
   const avatarEl=document.getElementById('profileAvatar');
   const nameEl=document.getElementById('profileName');
+  const greetingEl=document.getElementById('overview-user-name');
   if(avatarEl)avatarEl.textContent=(username||'?')[0].toUpperCase();
   if(nameEl)nameEl.textContent=username||'User';
+  if(greetingEl)greetingEl.textContent=username||'Founder';
 }
 
 async function checkHealth(){

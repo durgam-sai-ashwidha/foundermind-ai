@@ -732,18 +732,24 @@ async function loadSessions(){
   try{
     const sessions = await apiGet('/chat/sessions');
     const list = document.getElementById('sessionList');
-    if(!list) return;
+    if(!list) return false;
     if(!Array.isArray(sessions) || sessions.length === 0){
       list.innerHTML = '';
-      return;
+      return false;
     }
 
     const savedSessionId = localStorage.getItem('active_chat_session_id');
-    if(!currentSessionId && savedSessionId && sessions.some(s => s.id === savedSessionId)){
-      currentSessionId = savedSessionId;
-    } else if(!currentSessionId && sessions.length > 0){
-      currentSessionId = sessions[0].id;
-      localStorage.setItem('active_chat_session_id', currentSessionId);
+    let targetSessionId = null;
+
+    if(savedSessionId && sessions.some(s => s.id === savedSessionId)){
+      targetSessionId = savedSessionId;
+    } else if(sessions.length > 0){
+      targetSessionId = sessions[0].id;
+    }
+
+    if(targetSessionId){
+      currentSessionId = targetSessionId;
+      localStorage.setItem('active_chat_session_id', targetSessionId);
     }
 
     list.innerHTML = sessions.map(s => {
@@ -756,33 +762,45 @@ async function loadSessions(){
         </div>
       `;
     }).join('');
+
+    if(targetSessionId){
+      await loadSession(targetSessionId);
+      return true;
+    }
+    return false;
   }catch(e){
     console.warn('Could not load sessions:', e);
+    return false;
   }
 }
 
 async function loadSession(sessionId){
+  if(!sessionId) return;
   currentSessionId = sessionId;
   localStorage.setItem('active_chat_session_id', sessionId);
-  showPage('chat', document.querySelectorAll('.nav-item')[1]);
+  
+  // Highlight active session item in sidebar
   document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
   const activeEl = document.getElementById(`session-item-${sessionId}`);
   if(activeEl) activeEl.classList.add('active-session');
   
   const messages = document.getElementById('messages');
-  messages.innerHTML = '';
+  if(messages) messages.innerHTML = '';
   welcomeHidden = true;
   const wc = document.getElementById('welcomeCard');
   if(wc) wc.classList.add('hidden');
 
   try{
-    const history = await apiGet(`/chat/sessions/${sessionId}/messages`);
-    if(Array.isArray(history)){
+    const res = await apiGet(`/chat/sessions/${sessionId}/messages`);
+    const history = Array.isArray(res) ? res : (res && Array.isArray(res.messages) ? res.messages : []);
+    if(history.length > 0){
       history.forEach(msg => {
         const role = msg.role === 'assistant' ? 'ai' : 'user';
         addMessage(role, msg.message, false, null);
       });
-      setTimeout(()=>{messages.scrollTop = messages.scrollHeight;}, 80);
+      if(messages){
+        setTimeout(()=>{messages.scrollTop = messages.scrollHeight;}, 80);
+      }
     }
   }catch(e){
     console.error('Failed to load session messages:', e);
@@ -797,7 +815,7 @@ async function newChat(){
     showPage('chat', document.querySelectorAll('.nav-item')[1]);
     document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
     const messages = document.getElementById('messages');
-    messages.innerHTML = '';
+    if(messages) messages.innerHTML = '';
     welcomeHidden = false;
     const wc = document.getElementById('welcomeCard');
     if(wc) wc.classList.remove('hidden');
@@ -820,12 +838,14 @@ async function loadChatHistory(){
     const divider=document.createElement('div');
     divider.style.cssText='text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.28);padding:8px 0 4px;letter-spacing:0.05em;';
     divider.textContent='— Active session —';
-    messages.appendChild(divider);
+    if(messages) messages.appendChild(divider);
     history.forEach(msg=>{
       const role = msg.role === 'assistant' ? 'ai' : 'user';
       addMessage(role, msg.message, false, null);
     });
-    setTimeout(()=>{messages.scrollTop=messages.scrollHeight;},80);
+    if(messages){
+      setTimeout(()=>{messages.scrollTop=messages.scrollHeight;},80);
+    }
   }catch(e){
     console.warn('Could not load chat history:', e);
   }
@@ -849,11 +869,10 @@ async function loadAll(){
     renderTasks();renderMeetings();renderDocuments();renderMemories();
     updateOverview();
     updateSettingsStatus();
-    // Restore sessions & active chat history from SQLite / localStorage
-    await loadSessions();
-    if(currentSessionId){
-      await loadSession(currentSessionId);
-    } else {
+    
+    // Load sessions and restore active session sequentially
+    const hasLoadedSession = await loadSessions();
+    if(!hasLoadedSession){
       await loadChatHistory();
     }
   }catch(e){

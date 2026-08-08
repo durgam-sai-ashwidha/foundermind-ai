@@ -615,22 +615,17 @@ def get_session_messages(session_id):
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
-            # Verify ownership
-            c.execute("SELECT id FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
-            if not c.fetchone():
-                return jsonify({"error": "Not found"}), 404
             c.execute(
                 "SELECT role, message, timestamp FROM chat_messages WHERE session_id = ? AND user_id = ? ORDER BY id ASC",
                 (session_id, user_id)
             )
             rows = [{"role": r["role"], "message": r["message"], "timestamp": r["timestamp"]} for r in c.fetchall()]
-        # Update active session in server context
         session["chat_session_id"] = session_id
         session.modified = True
-        return jsonify(rows)
+        return jsonify({"status": "ok", "session_id": session_id, "messages": rows})
     except Exception as e:
         print(f"[Session Messages Fetch Error]: {e}")
-        return jsonify([])
+        return jsonify({"status": "error", "messages": []}), 200
 
 
 @app.route("/chat/history", methods=["GET"])

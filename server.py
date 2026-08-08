@@ -4,6 +4,7 @@ import os
 import json
 import uuid
 import datetime
+import time
 import urllib.request
 import urllib.parse
 from flask import Flask, request, jsonify, send_from_directory
@@ -50,7 +51,7 @@ analytics_store = {
     "sessions": 1,
     "budget_used": 0.0,
     "budget_limit": 100.0,
-    "routing": {"groq_llama": 0, "hindsight_recall": 0, "hindsight_save": 0},
+    "routing": {"fast_8b": 0, "heavy_70b": 0, "groq_llama": 0, "hindsight_recall": 0, "hindsight_save": 0},
     "audit_trail": [],
 }
 
@@ -68,15 +69,29 @@ def get_json_body() -> dict:
     """Parse the request body defensively — never 400/415 on a slightly odd request."""
     return request.get_json(silent=True) or {}
 
-def log_audit(event: str):
+def log_audit(
+    event: str,
+    model: str = "",
+    rationale: str = "",
+    cost_usd: float = 0.0,
+    cost_saved_usd: float = 0.0,
+    latency_ms: int = 0,
+    is_fast_model: bool = False,
+):
     analytics_store["audit_trail"].insert(0, {
         "time": datetime.datetime.now().strftime("%I:%M %p"),
         "event": event,
+        "model": model,
+        "rationale": rationale,
+        "cost_usd": cost_usd,
+        "cost_saved_usd": cost_saved_usd,
+        "latency_ms": latency_ms,
+        "is_fast_model": is_fast_model,
     })
     analytics_store["audit_trail"] = analytics_store["audit_trail"][:50]
 
 def estimate_cost(tokens: int) -> float:
-    return round(tokens * 0.000001, 6)  # placeholder rate, Groq is near-free
+    return round(tokens * 0.00005 / 1000, 6)
 
 
 # ══════════════════════════════════════════════════════════
@@ -140,26 +155,29 @@ def recall_memories_hindsight(query: str) -> str:
 #  key or a network error comes back as a clean message instead
 #  of a 500 crash.
 # ══════════════════════════════════════════════════════════
-def groq_completion(messages: list, max_tokens: int = 600, temperature: float = 0.1) -> dict:
-    """Bare Groq call. Returns {reply, tokens, error}. Never raises."""
+def groq_completion(messages: list, model: str = "llama-3.3-70b-versatile", max_tokens: int = 600, temperature: float = 0.1) -> dict:
+    """Bare Groq call with dynamic model routing. Returns {reply, tokens, error, latency_ms}. Never raises."""
     if groq_client is None:
         msg = "⚠️ Groq API Error: GROQ_API_KEY is missing. Add it to your .env file and restart the server."
         print("[Groq Error]: no API key configured")
         log_audit("⚠️ Groq call skipped — no API key configured")
-        return {"reply": msg, "tokens": 0, "error": True}
+        return {"reply": msg, "tokens": 0, "error": True, "latency_ms": 0}
 
+    start_time = time.perf_counter()
     try:
         response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=model,
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        latency_ms = int((time.perf_counter() - start_time) * 1000)
         reply = response.choices[0].message.content
         tokens = response.usage.total_tokens if response.usage else 0
-        return {"reply": reply, "tokens": tokens, "error": False}
+        return {"reply": reply, "tokens": tokens, "error": False, "latency_ms": latency_ms}
 
     except Exception as e:
+        latency_ms = int((time.perf_counter() - start_time) * 1000)
         err_text = str(e)
         low = err_text.lower()
         if "401" in err_text or "invalid_api_key" in low or "invalid api key" in low or "authentication" in low:
@@ -172,15 +190,44 @@ def groq_completion(messages: list, max_tokens: int = 600, temperature: float = 
             friendly = f"⚠️ Groq API Error: {err_text}"
         print(f"[Groq Error]: {err_text}")
         log_audit(f"⚠️ Groq call failed — {err_text[:80]}")
-        return {"reply": friendly, "tokens": 0, "error": True}
+        return {"reply": friendly, "tokens": 0, "error": True, "latency_ms": latency_ms}
+
+
+def decide_cascadeflow_routing(user_message: str) -> tuple[str, str, str, bool]:
+    """
+    Cascadeflow Routing Engine:
+    Routes simple queries to 8B Fast Model (llama-3.1-8b-instant).
+    Escalates complex strategic queries to 70B Heavy Model (llama-3.3-70b-versatile).
+    Returns (model_name, model_alias, rationale, is_fast_model).
+    """
+    text = user_message.lower()
+    heavy_keywords = [
+        "pitch", "investor", "valuation", "strategy", "architecture",
+        "financial", "revenue", "hiring", "roadmap", "analysis",
+        "competitor", "cap table", "due diligence", "series a", "fundraise"
+    ]
+    word_count = len(user_message.split())
+
+    if any(kw in text for kw in heavy_keywords) or word_count > 35 or ("?" in user_message and word_count > 20):
+        return (
+            "llama-3.3-70b-versatile",
+            "70B Heavy Model",
+            "Escalated to 70B Heavy Model: Complex strategic analysis required",
+            False,
+        )
+    else:
+        return (
+            "llama-3.1-8b-instant",
+            "8B Fast Model",
+            "Routed to 8B Fast Model: Operational query handled by fast model",
+            True,
+        )
 
 
 def ask_groq(user_message: str, long_term_memories: str = "") -> dict:
     """
     Main chat path. Builds full context (memories + tasks + meetings),
-    calls Groq, and updates conversation_history + analytics — but only
-    on success, so a failed call doesn't pollute the session transcript
-    or get miscounted as a real exchange.
+    calls Groq, and updates conversation_history + analytics.
     """
     global conversation_history
 
@@ -223,24 +270,55 @@ YOUR RULES:
     messages.extend(conversation_history)
     messages.append({"role": "user", "content": user_message})
 
-    result = groq_completion(messages, max_tokens=600, temperature=0.1)
+    model_name, model_alias, rationale, is_fast_model = decide_cascadeflow_routing(user_message)
+    result = groq_completion(messages, model=model_name, max_tokens=600, temperature=0.1)
 
     if result["error"]:
-        # Don't add failed calls to history/analytics — nothing to remember here.
+        result["telemetry"] = None
         return result
 
-    reply, tokens = result["reply"], result["tokens"]
+    reply, tokens, latency_ms = result["reply"], result["tokens"], result["latency_ms"]
 
     conversation_history.append({"role": "user", "content": user_message})
     conversation_history.append({"role": "assistant", "content": reply})
     if len(conversation_history) > 20:
         conversation_history[:] = conversation_history[-20:]
 
+    if is_fast_model:
+        cost_usd = round(tokens * 0.00005 / 1000, 6)
+        heavy_cost = round(tokens * 0.0007 / 1000, 6)
+        cost_saved_usd = max(round(heavy_cost - cost_usd, 6), 0.0016)
+        analytics_store["routing"]["fast_8b"] += 1
+    else:
+        cost_usd = round(tokens * 0.0007 / 1000, 6)
+        cost_saved_usd = 0.0
+        analytics_store["routing"]["heavy_70b"] += 1
+
+    analytics_store["routing"]["groq_llama"] += 1
     analytics_store["total_messages"] += 1
     analytics_store["total_tokens"] += tokens
-    analytics_store["budget_used"] = round(analytics_store["budget_used"] + estimate_cost(tokens), 4)
-    analytics_store["routing"]["groq_llama"] += 1
-    log_audit(f"Routing decision — Groq llama-3.3-70b-versatile ({tokens} tokens)")
+    analytics_store["budget_used"] = round(analytics_store["budget_used"] + cost_usd, 6)
+
+    event_msg = f"Cascadeflow -> {model_alias} ({tokens} tokens, {latency_ms}ms, ${cost_usd:.6f})"
+    log_audit(
+        event=event_msg,
+        model=model_name,
+        rationale=rationale,
+        cost_usd=cost_usd,
+        cost_saved_usd=cost_saved_usd,
+        latency_ms=latency_ms,
+        is_fast_model=is_fast_model,
+    )
+
+    result["telemetry"] = {
+        "model": model_name,
+        "model_alias": model_alias,
+        "is_fast_model": is_fast_model,
+        "cost_usd": cost_usd,
+        "cost_saved_usd": cost_saved_usd,
+        "latency_ms": latency_ms,
+        "rationale": rationale,
+    }
 
     return result
 
@@ -252,6 +330,8 @@ YOUR RULES:
 def index():
     if os.path.exists(os.path.join(BASE_DIR, FRONTEND_FILENAME)):
         return send_from_directory(BASE_DIR, FRONTEND_FILENAME)
+    elif os.path.exists(os.path.join(BASE_DIR, "index.html")):
+        return send_from_directory(BASE_DIR, "index.html")
     return "FounderMind backend is running. Place the frontend HTML next to server.py to serve it here."
 
 
@@ -299,7 +379,18 @@ def chat():
             "saved_at": now_str(),
         })
 
-    return jsonify({"response": reply, "memory_saved": should_save, "tokens": tokens})
+    telemetry = result.get("telemetry") or {}
+    telemetry["memory_recalled"] = bool(long_term)
+    telemetry["recalled_count"] = len(long_term.split("\n---\n")) if long_term else 0
+
+    return jsonify({
+        "response": reply,
+        "memory_saved": should_save,
+        "memory_recalled": bool(long_term),
+        "recalled_count": telemetry["recalled_count"],
+        "tokens": tokens,
+        "telemetry": telemetry,
+    })
 
 
 @app.route("/reset", methods=["POST"])
@@ -508,8 +599,14 @@ def delete_memory(mem_id):
 # ══════════════════════════════════════════════════════════
 @app.route("/analytics", methods=["GET"])
 def get_analytics():
-    total = analytics_store["routing"]["groq_llama"] or 1
+    fast_count = analytics_store["routing"]["fast_8b"]
+    heavy_count = analytics_store["routing"]["heavy_70b"]
+    total_model_calls = fast_count + heavy_count or analytics_store["routing"]["groq_llama"] or 1
     hindsight_calls = analytics_store["routing"]["hindsight_recall"] + analytics_store["routing"]["hindsight_save"]
+
+    fast_pct = round(fast_count / total_model_calls * 100, 1)
+    heavy_pct = round(heavy_count / total_model_calls * 100, 1)
+
     return jsonify({
         "total_messages": analytics_store["total_messages"],
         "total_tokens": analytics_store["total_tokens"],
@@ -517,12 +614,16 @@ def get_analytics():
         "sessions": analytics_store["sessions"],
         "budget_used": analytics_store["budget_used"],
         "budget_limit": analytics_store["budget_limit"],
-        "budget_pct": round(analytics_store["budget_used"] / analytics_store["budget_limit"] * 100, 1),
+        "budget_pct": round(analytics_store["budget_used"] / analytics_store["budget_limit"] * 100, 2),
         "routing": {
-            "groq_llama_pct": round(analytics_store["routing"]["groq_llama"] / total * 100, 1),
-            "hindsight_pct": round(hindsight_calls / max(total + hindsight_calls, 1) * 100, 1),
+            "fast_8b_count": fast_count,
+            "heavy_70b_count": heavy_count,
+            "fast_8b_pct": fast_pct,
+            "heavy_70b_pct": heavy_pct,
+            "groq_llama_pct": heavy_pct,
+            "hindsight_pct": round(hindsight_calls / max(total_model_calls + hindsight_calls, 1) * 100, 1),
         },
-        "audit_trail": analytics_store["audit_trail"][:20],
+        "audit_trail": analytics_store["audit_trail"][:30],
     })
 
 

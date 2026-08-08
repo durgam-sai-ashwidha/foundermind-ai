@@ -1,11 +1,15 @@
 from __future__ import annotations  # lets `dict | None` etc. run on Python < 3.10
 
+import sys
 import os
 import json
 import uuid
 import datetime
 import urllib.request
 import urllib.parse
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from groq import Groq
@@ -14,7 +18,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_FILENAME = "FounderMind_Enhanced_fixed.html"
+FRONTEND_FILENAME = "index.html"
+
+from hindsight_manager import hindsight_mgr, classify_memory_tag
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
@@ -80,59 +86,26 @@ def estimate_cost(tokens: int) -> float:
 
 
 # ══════════════════════════════════════════════════════════
-#  HINDSIGHT  (long-term memory across sessions)
+#  HINDSIGHT  (long-term memory across sessions using SDK)
 # ══════════════════════════════════════════════════════════
-def save_memory_hindsight(content: str) -> dict | None:
-    if not HINDSIGHT_API_KEY or not HINDSIGHT_PIPELINE_ID:
+def save_memory_hindsight(content: str, tag: str | None = None) -> dict | None:
+    if not hindsight_mgr.is_connected():
         return None
-    try:
-        data = json.dumps({
-            "pipeline_id": HINDSIGHT_PIPELINE_ID,
-            "content": content,
-            "metadata": {"timestamp": now_iso()},
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            "https://api.hindsight.vectorize.io/v1/memories",
-            data=data,
-            headers={"Authorization": f"Bearer {HINDSIGHT_API_KEY}", "Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            result = json.loads(resp.read())
-            print("[Hindsight] ✅ Memory saved")
-            log_audit("Memory retain — context saved to Hindsight")
-            analytics_store["routing"]["hindsight_save"] += 1
-            return result
-    except Exception as e:
-        print(f"[Hindsight Save Error]: {e}")
-        log_audit(f"⚠️ Hindsight save failed — {e}")
-        return None
+    res = hindsight_mgr.retain_memory(content, tag=tag)
+    if res:
+        log_audit("Memory retain — context saved to Hindsight Cloud via SDK")
+        analytics_store["routing"]["hindsight_save"] += 1
+    return res
 
 
 def recall_memories_hindsight(query: str) -> str:
-    if not HINDSIGHT_API_KEY or not HINDSIGHT_PIPELINE_ID:
+    if not hindsight_mgr.is_connected():
         return ""
-    try:
-        params = urllib.parse.urlencode({"pipeline_id": HINDSIGHT_PIPELINE_ID, "query": query, "limit": 5})
-        req = urllib.request.Request(
-            f"https://api.hindsight.vectorize.io/v1/memories/search?{params}",
-            headers={"Authorization": f"Bearer {HINDSIGHT_API_KEY}", "Content-Type": "application/json"},
-            method="GET",
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            result = json.loads(resp.read())
-            mems = result.get("memories", [])
-            if mems:
-                texts = [m.get("content", "") for m in mems]
-                print(f"[Hindsight] ✅ Recalled {len(texts)} memories")
-                log_audit(f"Memory recall — {len(texts)} memories retrieved")
-                analytics_store["routing"]["hindsight_recall"] += 1
-                return "\n---\n".join(texts)
-            return ""
-    except Exception as e:
-        print(f"[Hindsight Recall Error]: {e}")
-        log_audit(f"⚠️ Hindsight recall failed — {e}")
-        return ""
+    ctx = hindsight_mgr.get_formatted_memory_context(query)
+    if ctx:
+        log_audit(f"Memory recall — retrieved relevant memories via SDK")
+        analytics_store["routing"]["hindsight_recall"] += 1
+    return ctx
 
 
 # ══════════════════════════════════════════════════════════
@@ -278,25 +251,19 @@ def chat():
     should_save = (not had_error) and (user_message.lower().strip() not in skip_words)
 
     if should_save:
-        save_memory_hindsight(f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {reply}")
+        tag = classify_memory_tag(user_message)
+        save_memory_hindsight(
+            f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {reply}",
+            tag=tag
+        )
         analytics_store["memories_saved"] += 1
-
-        tag = "decision"
-        text = user_message.lower()
-        if any(k in text for k in ["investor", "funding", "pitch", "vc", "seed", "series"]):
-            tag = "investor"
-        elif any(k in text for k in ["meeting", "call", "sync"]):
-            tag = "meeting"
-        elif any(k in text for k in ["task", "deadline", "todo", "finish", "complete"]):
-            tag = "task"
-        elif any(k in text for k in ["revenue", "mrr", "arr", "churn", "runway", "burn"]):
-            tag = "revenue"
 
         memories_store.insert(0, {
             "id": str(uuid.uuid4()),
             "text": user_message,
             "tag": tag,
             "saved_at": now_str(),
+            "hindsight_synced": hindsight_mgr.is_connected(),
         })
 
     return jsonify({"response": reply, "memory_saved": should_save, "tokens": tokens})
@@ -474,20 +441,36 @@ def search_memories_route():
     query = request.args.get("q", "").strip()
     if not query:
         return jsonify({"error": "Query required"}), 400
-    result = recall_memories_hindsight(query)
-    return jsonify({"query": query, "results": result})
+    results = hindsight_mgr.recall_memories(query)
+    formatted = hindsight_mgr.get_formatted_memory_context(query)
+    return jsonify({"query": query, "results": results, "formatted_context": formatted})
+
+
+@app.route("/memories/hindsight", methods=["GET"])
+def sync_hindsight_memories_route():
+    """Sync durable memories from Hindsight Cloud into the local UI mirror."""
+    global memories_store
+    synced = hindsight_mgr.sync_to_local_mirror()
+    if synced:
+        # Merge without duplicate IDs
+        existing_ids = {m["id"] for m in memories_store}
+        for item in synced:
+            if item["id"] not in existing_ids:
+                memories_store.append(item)
+                existing_ids.add(item["id"])
+    return jsonify({"status": "synced", "count": len(memories_store), "memories": memories_store})
 
 
 @app.route("/memories", methods=["POST"])
 def save_memory_route():
     data = get_json_body()
     text = (data.get("text") or "").strip()
-    tag = data.get("tag", "decision")
+    tag = data.get("tag") or classify_memory_tag(text)
     if not text:
         return jsonify({"error": "Text required"}), 400
-    mem = {"id": str(uuid.uuid4()), "text": text, "tag": tag, "saved_at": now_str()}
+    mem = {"id": str(uuid.uuid4()), "text": text, "tag": tag, "saved_at": now_str(), "hindsight_synced": True}
     memories_store.insert(0, mem)
-    save_memory_hindsight(f"[{now_str()}]\n{text}")
+    save_memory_hindsight(f"[{now_str()}]\n{text}", tag=tag)
     analytics_store["memories_saved"] += 1
     return jsonify(mem), 201
 

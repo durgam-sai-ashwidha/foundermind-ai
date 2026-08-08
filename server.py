@@ -482,7 +482,26 @@ def chat():
     user_id = session.get("user_id")
 
     # --- Auto-create or reuse chat session ---
+    req_session_id = data.get("session_id") if isinstance(data, dict) else None
+    if req_session_id:
+        session["chat_session_id"] = req_session_id
+        session.modified = True
+
     chat_session_id = session.get("chat_session_id")
+    if not chat_session_id:
+        # Fallback to user's most recent session if available
+        try:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                c.execute("SELECT id FROM chat_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,))
+                row = c.fetchone()
+                if row:
+                    chat_session_id = row["id"]
+                    session["chat_session_id"] = chat_session_id
+                    session.modified = True
+        except Exception as e:
+            print(f"[DB Session Fallback Lookup Error]: {e}")
+
     if not chat_session_id:
         chat_session_id = str(uuid.uuid4())
         session_title = user_message[:40] + ("..." if len(user_message) > 40 else "")
@@ -605,6 +624,9 @@ def get_session_messages(session_id):
                 (session_id, user_id)
             )
             rows = [{"role": r["role"], "message": r["message"], "timestamp": r["timestamp"]} for r in c.fetchall()]
+        # Update active session in server context
+        session["chat_session_id"] = session_id
+        session.modified = True
         return jsonify(rows)
     except Exception as e:
         print(f"[Session Messages Fetch Error]: {e}")
@@ -615,14 +637,27 @@ def get_session_messages(session_id):
 @login_required
 def get_chat_history():
     user_id = session["user_id"]
-    current_session_id = session.get("chat_session_id")
+    current_session_id = request.args.get("session_id") or session.get("chat_session_id")
+    if not current_session_id:
+        try:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                c.execute("SELECT id FROM chat_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,))
+                row = c.fetchone()
+                if row:
+                    current_session_id = row["id"]
+                    session["chat_session_id"] = current_session_id
+                    session.modified = True
+        except Exception:
+            pass
+
     limit = min(int(request.args.get("limit", 50)), 200)
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
             if current_session_id:
                 c.execute(
-                    "SELECT role, message, timestamp FROM chat_messages WHERE user_id = ? AND session_id = ? ORDER BY id DESC LIMIT ?",
+                    "SELECT role, message, timestamp FROM chat_messages WHERE user_id = ? AND session_id = ? ORDER BY id ASC LIMIT ?",
                     (user_id, current_session_id, limit)
                 )
             else:
@@ -630,8 +665,10 @@ def get_chat_history():
                     "SELECT role, message, timestamp FROM chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT ?",
                     (user_id, limit)
                 )
+                rows = [{"role": r["role"], "message": r["message"], "timestamp": r["timestamp"]} for r in c.fetchall()]
+                rows.reverse()
+                return jsonify(rows)
             rows = [{"role": r["role"], "message": r["message"], "timestamp": r["timestamp"]} for r in c.fetchall()]
-        rows.reverse()  # oldest first
         return jsonify(rows)
     except Exception as e:
         print(f"[Chat History Fetch Error]: {e}")

@@ -737,6 +737,15 @@ async function loadSessions(){
       list.innerHTML = '';
       return;
     }
+
+    const savedSessionId = localStorage.getItem('active_chat_session_id');
+    if(!currentSessionId && savedSessionId && sessions.some(s => s.id === savedSessionId)){
+      currentSessionId = savedSessionId;
+    } else if(!currentSessionId && sessions.length > 0){
+      currentSessionId = sessions[0].id;
+      localStorage.setItem('active_chat_session_id', currentSessionId);
+    }
+
     list.innerHTML = sessions.map(s => {
       const activeClass = s.id === currentSessionId ? 'active-session' : '';
       const safeTitle = (s.title || 'Chat Session').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -754,6 +763,7 @@ async function loadSessions(){
 
 async function loadSession(sessionId){
   currentSessionId = sessionId;
+  localStorage.setItem('active_chat_session_id', sessionId);
   showPage('chat', document.querySelectorAll('.nav-item')[1]);
   document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
   const activeEl = document.getElementById(`session-item-${sessionId}`);
@@ -783,6 +793,7 @@ async function newChat(){
   try{
     await apiPost('/chat/new-session', {});
     currentSessionId = null;
+    localStorage.removeItem('active_chat_session_id');
     showPage('chat', document.querySelectorAll('.nav-item')[1]);
     document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
     const messages = document.getElementById('messages');
@@ -838,9 +849,13 @@ async function loadAll(){
     renderTasks();renderMeetings();renderDocuments();renderMemories();
     updateOverview();
     updateSettingsStatus();
-    // Restore sessions & chat history from SQLite
+    // Restore sessions & active chat history from SQLite / localStorage
     await loadSessions();
-    await loadChatHistory();
+    if(currentSessionId){
+      await loadSession(currentSessionId);
+    } else {
+      await loadChatHistory();
+    }
   }catch(e){
     console.error('Failed to load initial data',e);
   }
@@ -995,6 +1010,7 @@ async function sendMessage(){
     addMessage('ai',reply,data.memory_saved,data.telemetry||null);
     if(data.session_id){
       currentSessionId = data.session_id;
+      localStorage.setItem('active_chat_session_id', data.session_id);
       loadSessions();
     }
     if(data.memory_saved){

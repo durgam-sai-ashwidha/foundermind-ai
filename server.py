@@ -110,6 +110,7 @@ def init_db():
         c.execute("""CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT DEFAULT 'Other', icon TEXT DEFAULT 'doc', created_at TEXT NOT NULL)""")
         c.execute("""CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, text TEXT NOT NULL, tag TEXT DEFAULT 'decision', saved_at TEXT NOT NULL)""")
         c.execute("""CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, event TEXT NOT NULL, model_used TEXT DEFAULT '', model_alias TEXT DEFAULT '', rationale TEXT DEFAULT '', cost_usd REAL DEFAULT 0.0, cost_saved_usd REAL DEFAULT 0.0, latency_ms REAL DEFAULT 0.0, is_fast_model INTEGER DEFAULT 0, cascaded INTEGER DEFAULT 0)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS chat_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, role TEXT NOT NULL, message TEXT NOT NULL, timestamp TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))""")
         
         # Run table info schema migration check
         c.execute("PRAGMA table_info(audit_logs)")
@@ -478,7 +479,10 @@ def chat():
     should_save = (not had_error) and (user_message.lower().strip() not in skip_words)
 
     if should_save:
-        save_memory_hindsight(f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {reply}")
+        try:
+            save_memory_hindsight(f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {reply}")
+        except Exception as e:
+            print(f"[Hindsight Save Error - Non-fatal]: {e}")
         analytics_store["memories_saved"] += 1
 
         tag = "decision"
@@ -501,6 +505,17 @@ def chat():
         except Exception as e:
             print(f"[DB Memory Insert Error]: {e}")
 
+    # Always persist both user message and AI reply to chat_messages
+    user_id = session.get("user_id")
+    ts = now_str()
+    try:
+        with get_db_connection() as conn:
+            conn.execute("INSERT INTO chat_messages (user_id, role, message, timestamp) VALUES (?, ?, ?, ?)", (user_id, "user", user_message, ts))
+            conn.execute("INSERT INTO chat_messages (user_id, role, message, timestamp) VALUES (?, ?, ?, ?)", (user_id, "assistant", reply, ts))
+            conn.commit()
+    except Exception as e:
+        print(f"[DB Chat History Insert Error]: {e}")
+
     memory_recalled = bool(long_term)
     recalled_count = len(long_term.split("\n---\n")) if long_term else 0
 
@@ -517,6 +532,26 @@ def chat():
     }
 
     return jsonify({"response": reply, "memory_saved": should_save, "memory_recalled": memory_recalled, "recalled_count": recalled_count, "tokens": result["tokens"], "cost_usd": result["cost_usd"], "cost_saved_usd": result.get("cost_saved_usd", 0.0), "latency_ms": result["latency_ms"], "model_used": result["model_used"], "model_alias": result.get("model_alias",""), "is_fast_model": result.get("is_fast_model", False), "cascaded": result["cascaded"], "telemetry": telemetry})
+
+
+@app.route("/chat/history", methods=["GET"])
+@login_required
+def get_chat_history():
+    user_id = session["user_id"]
+    limit = min(int(request.args.get("limit", 50)), 200)
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute(
+                "SELECT role, message, timestamp FROM chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                (user_id, limit)
+            )
+            rows = [{"role": r["role"], "message": r["message"], "timestamp": r["timestamp"]} for r in c.fetchall()]
+        rows.reverse()  # oldest first
+        return jsonify(rows)
+    except Exception as e:
+        print(f"[Chat History Fetch Error]: {e}")
+        return jsonify([])
 
 
 @app.route("/reset", methods=["POST"])

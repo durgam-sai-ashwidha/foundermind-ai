@@ -708,6 +708,33 @@ async function checkHealth(){
   }
 }
 
+async function loadChatHistory(){
+  try{
+    const history = await apiGet('/chat/history?limit=50');
+    if(!Array.isArray(history)||history.length===0) return;
+    const messages = document.getElementById('messages');
+    // Clear any default welcome hints but keep the welcome card hidden state
+    if(!welcomeHidden){
+      welcomeHidden=true;
+      const wc=document.getElementById('welcomeCard');
+      if(wc)wc.classList.add('hidden');
+    }
+    // Insert a subtle divider before history
+    const divider=document.createElement('div');
+    divider.style.cssText='text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.28);padding:8px 0 4px;letter-spacing:0.05em;';
+    divider.textContent='— Previous session —';
+    messages.appendChild(divider);
+    history.forEach(msg=>{
+      const role = msg.role === 'assistant' ? 'ai' : 'user';
+      addMessage(role, msg.message, false, null);
+    });
+    // Scroll to bottom after restoring
+    setTimeout(()=>{messages.scrollTop=messages.scrollHeight;},80);
+  }catch(e){
+    console.warn('Could not load chat history:', e);
+  }
+}
+
 async function loadAll(){
   document.getElementById('apiBaseInput').value=API_BASE;
   checkHealth();
@@ -726,6 +753,8 @@ async function loadAll(){
     renderTasks();renderMeetings();renderDocuments();renderMemories();
     updateOverview();
     updateSettingsStatus();
+    // Restore chat history from SQLite
+    await loadChatHistory();
   }catch(e){
     console.error('Failed to load initial data',e);
   }

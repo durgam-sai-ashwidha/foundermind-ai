@@ -71,6 +71,20 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .nav-item.active{background:var(--glow);color:var(--gold2);border-left-color:var(--gold2);font-weight:600;}
 .nav-item .nav-icon{font-size:1rem;width:22px;text-align:center;}
 
+/* SESSION HISTORY SIDEBAR */
+.session-section{padding:4px 0 2px;}
+.new-chat-btn{display:flex;align-items:center;gap:7px;margin:4px 10px 6px;padding:7px 12px;background:linear-gradient(135deg,rgba(245,200,66,0.12),rgba(212,160,23,0.07));border:1px solid rgba(245,200,66,0.25);border-radius:8px;cursor:pointer;font-size:0.75rem;color:var(--gold2);font-weight:600;transition:all 0.18s;letter-spacing:0.03em;}
+.new-chat-btn:hover{background:linear-gradient(135deg,rgba(245,200,66,0.22),rgba(212,160,23,0.14));border-color:var(--gold2);transform:translateX(1px);}
+.session-list{max-height:220px;overflow-y:auto;padding:2px 0;}
+.session-list::-webkit-scrollbar{width:3px;}
+.session-list::-webkit-scrollbar-track{background:transparent;}
+.session-list::-webkit-scrollbar-thumb{background:rgba(245,200,66,0.2);border-radius:2px;}
+.session-item{display:flex;flex-direction:column;gap:2px;padding:7px 14px 7px 20px;cursor:pointer;border-left:2px solid transparent;transition:all 0.14s;margin:1px 0;}
+.session-item:hover{background:var(--glow2);border-left-color:rgba(245,200,66,0.35);}
+.session-item.active-session{background:var(--glow);border-left-color:var(--gold2);}
+.session-title{font-size:0.74rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;}
+.session-time{font-size:0.6rem;color:var(--muted);font-family:monospace;}
+
 /* DARK/LIGHT TOGGLE in sidebar */
 .theme-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;font-size:0.8rem;color:var(--muted);}
 .toggle-switch{width:36px;height:20px;background:var(--border);border-radius:10px;position:relative;cursor:pointer;transition:background 0.2s;}
@@ -332,6 +346,10 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
     <div class="nav-section-title">Navigation</div>
     <div class="nav-item active" onclick="showPage('overview',this)"><span class="nav-icon">🏠</span> Overview</div>
     <div class="nav-item" onclick="showPage('chat',this)"><span class="nav-icon">💬</span> AI Chat</div>
+    <div class="session-section">
+      <div class="new-chat-btn" id="newChatBtn" onclick="newChat()">＋ New Chat</div>
+      <div class="session-list" id="sessionList"></div>
+    </div>
     <div class="nav-item" onclick="showPage('memory',this)"><span class="nav-icon">🧠</span> Memory</div>
     <div class="nav-item" onclick="showPage('tasks',this)"><span class="nav-icon">✅</span> Tasks</div>
     <div class="nav-item" onclick="showPage('meetings',this)"><span class="nav-icon">📅</span> Meetings</div>
@@ -708,27 +726,94 @@ async function checkHealth(){
   }
 }
 
+let currentSessionId = null;
+
+async function loadSessions(){
+  try{
+    const sessions = await apiGet('/chat/sessions');
+    const list = document.getElementById('sessionList');
+    if(!list) return;
+    if(!Array.isArray(sessions) || sessions.length === 0){
+      list.innerHTML = '';
+      return;
+    }
+    list.innerHTML = sessions.map(s => {
+      const activeClass = s.id === currentSessionId ? 'active-session' : '';
+      const safeTitle = (s.title || 'Chat Session').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `
+        <div class="session-item ${activeClass}" id="session-item-${s.id}" onclick="loadSession('${s.id}')">
+          <div class="session-title" title="${safeTitle}">${safeTitle}</div>
+          <div class="session-time">${s.created_at || ''}</div>
+        </div>
+      `;
+    }).join('');
+  }catch(e){
+    console.warn('Could not load sessions:', e);
+  }
+}
+
+async function loadSession(sessionId){
+  currentSessionId = sessionId;
+  showPage('chat', document.querySelectorAll('.nav-item')[1]);
+  document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
+  const activeEl = document.getElementById(`session-item-${sessionId}`);
+  if(activeEl) activeEl.classList.add('active-session');
+  
+  const messages = document.getElementById('messages');
+  messages.innerHTML = '';
+  welcomeHidden = true;
+  const wc = document.getElementById('welcomeCard');
+  if(wc) wc.classList.add('hidden');
+
+  try{
+    const history = await apiGet(`/chat/sessions/${sessionId}/messages`);
+    if(Array.isArray(history)){
+      history.forEach(msg => {
+        const role = msg.role === 'assistant' ? 'ai' : 'user';
+        addMessage(role, msg.message, false, null);
+      });
+      setTimeout(()=>{messages.scrollTop = messages.scrollHeight;}, 80);
+    }
+  }catch(e){
+    console.error('Failed to load session messages:', e);
+  }
+}
+
+async function newChat(){
+  try{
+    await apiPost('/chat/new-session', {});
+    currentSessionId = null;
+    showPage('chat', document.querySelectorAll('.nav-item')[1]);
+    document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
+    const messages = document.getElementById('messages');
+    messages.innerHTML = '';
+    welcomeHidden = false;
+    const wc = document.getElementById('welcomeCard');
+    if(wc) wc.classList.remove('hidden');
+    await loadSessions();
+  }catch(e){
+    console.error('Failed to start new chat session:', e);
+  }
+}
+
 async function loadChatHistory(){
   try{
     const history = await apiGet('/chat/history?limit=50');
     if(!Array.isArray(history)||history.length===0) return;
     const messages = document.getElementById('messages');
-    // Clear any default welcome hints but keep the welcome card hidden state
     if(!welcomeHidden){
       welcomeHidden=true;
       const wc=document.getElementById('welcomeCard');
       if(wc)wc.classList.add('hidden');
     }
-    // Insert a subtle divider before history
     const divider=document.createElement('div');
     divider.style.cssText='text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.28);padding:8px 0 4px;letter-spacing:0.05em;';
-    divider.textContent='— Previous session —';
+    divider.textContent='— Active session —';
     messages.appendChild(divider);
     history.forEach(msg=>{
       const role = msg.role === 'assistant' ? 'ai' : 'user';
       addMessage(role, msg.message, false, null);
     });
-    // Scroll to bottom after restoring
     setTimeout(()=>{messages.scrollTop=messages.scrollHeight;},80);
   }catch(e){
     console.warn('Could not load chat history:', e);
@@ -753,7 +838,8 @@ async function loadAll(){
     renderTasks();renderMeetings();renderDocuments();renderMemories();
     updateOverview();
     updateSettingsStatus();
-    // Restore chat history from SQLite
+    // Restore sessions & chat history from SQLite
+    await loadSessions();
     await loadChatHistory();
   }catch(e){
     console.error('Failed to load initial data',e);
@@ -907,6 +993,10 @@ async function sendMessage(){
     const reply=data.response||'Sorry, something went wrong.';
     conversationHistory.push({role:'assistant',content:reply});
     addMessage('ai',reply,data.memory_saved,data.telemetry||null);
+    if(data.session_id){
+      currentSessionId = data.session_id;
+      loadSessions();
+    }
     if(data.memory_saved){
       memCount++;
       const memCountEl=document.getElementById('memCount');

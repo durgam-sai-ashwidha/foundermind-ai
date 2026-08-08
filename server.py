@@ -111,8 +111,9 @@ def init_db():
         c.execute("""CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, text TEXT NOT NULL, tag TEXT DEFAULT 'decision', saved_at TEXT NOT NULL)""")
         c.execute("""CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, event TEXT NOT NULL, model_used TEXT DEFAULT '', model_alias TEXT DEFAULT '', rationale TEXT DEFAULT '', cost_usd REAL DEFAULT 0.0, cost_saved_usd REAL DEFAULT 0.0, latency_ms REAL DEFAULT 0.0, is_fast_model INTEGER DEFAULT 0, cascaded INTEGER DEFAULT 0)""")
         c.execute("""CREATE TABLE IF NOT EXISTS chat_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, role TEXT NOT NULL, message TEXT NOT NULL, timestamp TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))""")
-        
-        # Run table info schema migration check
+        c.execute("""CREATE TABLE IF NOT EXISTS chat_sessions (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, title TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))""")
+
+        # Schema migrations
         c.execute("PRAGMA table_info(audit_logs)")
         existing_cols = {row["name"] for row in c.fetchall()}
         if "model_alias" not in existing_cols:
@@ -123,6 +124,16 @@ def init_db():
             c.execute("ALTER TABLE audit_logs ADD COLUMN rationale TEXT DEFAULT ''")
         if "cost_saved_usd" not in existing_cols:
             c.execute("ALTER TABLE audit_logs ADD COLUMN cost_saved_usd REAL DEFAULT 0.0")
+        # Migrate chat_messages to include session_id
+        try:
+            c.execute("ALTER TABLE chat_messages ADD COLUMN session_id TEXT DEFAULT NULL")
+        except Exception:
+            pass  # Column already exists
+        # Migrate memories to include user_id
+        try:
+            c.execute("ALTER TABLE memories ADD COLUMN user_id INTEGER DEFAULT NULL")
+        except Exception:
+            pass  # Column already exists
         conn.commit()
 
 init_db()
@@ -468,6 +479,25 @@ def chat():
         return jsonify({"error": "No message"}), 400
 
     current_user = session.get("username") or (data.get("username") if isinstance(data, dict) else None) or "Founder"
+    user_id = session.get("user_id")
+
+    # --- Auto-create or reuse chat session ---
+    chat_session_id = session.get("chat_session_id")
+    if not chat_session_id:
+        chat_session_id = str(uuid.uuid4())
+        session_title = user_message[:40] + ("..." if len(user_message) > 40 else "")
+        session_created_at = now_str()
+        try:
+            with get_db_connection() as conn:
+                conn.execute(
+                    "INSERT INTO chat_sessions (id, user_id, title, created_at) VALUES (?, ?, ?, ?)",
+                    (chat_session_id, user_id, session_title, session_created_at)
+                )
+                conn.commit()
+        except Exception as e:
+            print(f"[DB Session Create Error]: {e}")
+        session["chat_session_id"] = chat_session_id
+        session.modified = True
 
     print(f"\n[{current_user}]: {user_message}")
     long_term = recall_memories_hindsight(user_message)
@@ -500,18 +530,17 @@ def chat():
         saved_at = now_str()
         try:
             with get_db_connection() as conn:
-                conn.execute("INSERT INTO memories (id, text, tag, saved_at) VALUES (?, ?, ?, ?)", (mem_id, user_message, tag, saved_at))
+                conn.execute("INSERT INTO memories (id, text, tag, saved_at, user_id) VALUES (?, ?, ?, ?, ?)", (mem_id, user_message, tag, saved_at, user_id))
                 conn.commit()
         except Exception as e:
             print(f"[DB Memory Insert Error]: {e}")
 
-    # Always persist both user message and AI reply to chat_messages
-    user_id = session.get("user_id")
+    # Always persist both user message and AI reply to chat_messages (with session_id)
     ts = now_str()
     try:
         with get_db_connection() as conn:
-            conn.execute("INSERT INTO chat_messages (user_id, role, message, timestamp) VALUES (?, ?, ?, ?)", (user_id, "user", user_message, ts))
-            conn.execute("INSERT INTO chat_messages (user_id, role, message, timestamp) VALUES (?, ?, ?, ?)", (user_id, "assistant", reply, ts))
+            conn.execute("INSERT INTO chat_messages (user_id, role, message, timestamp, session_id) VALUES (?, ?, ?, ?, ?)", (user_id, "user", user_message, ts, chat_session_id))
+            conn.execute("INSERT INTO chat_messages (user_id, role, message, timestamp, session_id) VALUES (?, ?, ?, ?, ?)", (user_id, "assistant", reply, ts, chat_session_id))
             conn.commit()
     except Exception as e:
         print(f"[DB Chat History Insert Error]: {e}")
@@ -531,21 +560,76 @@ def chat():
         "recalled_count": recalled_count,
     }
 
-    return jsonify({"response": reply, "memory_saved": should_save, "memory_recalled": memory_recalled, "recalled_count": recalled_count, "tokens": result["tokens"], "cost_usd": result["cost_usd"], "cost_saved_usd": result.get("cost_saved_usd", 0.0), "latency_ms": result["latency_ms"], "model_used": result["model_used"], "model_alias": result.get("model_alias",""), "is_fast_model": result.get("is_fast_model", False), "cascaded": result["cascaded"], "telemetry": telemetry})
+    return jsonify({"response": reply, "memory_saved": should_save, "memory_recalled": memory_recalled, "recalled_count": recalled_count, "tokens": result["tokens"], "cost_usd": result["cost_usd"], "cost_saved_usd": result.get("cost_saved_usd", 0.0), "latency_ms": result["latency_ms"], "model_used": result["model_used"], "model_alias": result.get("model_alias",""), "is_fast_model": result.get("is_fast_model", False), "cascaded": result["cascaded"], "telemetry": telemetry, "session_id": chat_session_id})
+
+
+@app.route("/chat/sessions", methods=["GET"])
+@login_required
+def get_chat_sessions():
+    user_id = session["user_id"]
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute(
+                "SELECT id, title, created_at FROM chat_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 30",
+                (user_id,)
+            )
+            rows = [{"id": r["id"], "title": r["title"], "created_at": r["created_at"]} for r in c.fetchall()]
+        return jsonify(rows)
+    except Exception as e:
+        print(f"[Chat Sessions Fetch Error]: {e}")
+        return jsonify([])
+
+
+@app.route("/chat/new-session", methods=["POST"])
+@login_required
+def new_chat_session():
+    session.pop("chat_session_id", None)
+    session.modified = True
+    return jsonify({"status": "ok", "message": "New session started"})
+
+
+@app.route("/chat/sessions/<session_id>/messages", methods=["GET"])
+@login_required
+def get_session_messages(session_id):
+    user_id = session["user_id"]
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            # Verify ownership
+            c.execute("SELECT id FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
+            if not c.fetchone():
+                return jsonify({"error": "Not found"}), 404
+            c.execute(
+                "SELECT role, message, timestamp FROM chat_messages WHERE session_id = ? AND user_id = ? ORDER BY id ASC",
+                (session_id, user_id)
+            )
+            rows = [{"role": r["role"], "message": r["message"], "timestamp": r["timestamp"]} for r in c.fetchall()]
+        return jsonify(rows)
+    except Exception as e:
+        print(f"[Session Messages Fetch Error]: {e}")
+        return jsonify([])
 
 
 @app.route("/chat/history", methods=["GET"])
 @login_required
 def get_chat_history():
     user_id = session["user_id"]
+    current_session_id = session.get("chat_session_id")
     limit = min(int(request.args.get("limit", 50)), 200)
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute(
-                "SELECT role, message, timestamp FROM chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT ?",
-                (user_id, limit)
-            )
+            if current_session_id:
+                c.execute(
+                    "SELECT role, message, timestamp FROM chat_messages WHERE user_id = ? AND session_id = ? ORDER BY id DESC LIMIT ?",
+                    (user_id, current_session_id, limit)
+                )
+            else:
+                c.execute(
+                    "SELECT role, message, timestamp FROM chat_messages WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                    (user_id, limit)
+                )
             rows = [{"role": r["role"], "message": r["message"], "timestamp": r["timestamp"]} for r in c.fetchall()]
         rows.reverse()  # oldest first
         return jsonify(rows)
@@ -726,13 +810,14 @@ def delete_document(doc_id):
 @app.route("/memories", methods=["GET"])
 @login_required
 def get_memories():
+    user_id = session["user_id"]
     query = request.args.get("q", "").lower().strip()
     with get_db_connection() as conn:
         c = conn.cursor()
         if query:
-            c.execute("SELECT id, text, tag, saved_at FROM memories WHERE LOWER(text) LIKE ? ORDER BY saved_at DESC", (f"%{query}%",))
+            c.execute("SELECT id, text, tag, saved_at FROM memories WHERE user_id = ? AND LOWER(text) LIKE ? ORDER BY saved_at DESC", (user_id, f"%{query}%"))
         else:
-            c.execute("SELECT id, text, tag, saved_at FROM memories ORDER BY saved_at DESC")
+            c.execute("SELECT id, text, tag, saved_at FROM memories WHERE user_id = ? ORDER BY saved_at DESC", (user_id,))
         memories = [dict(r) for r in c.fetchall()]
     return jsonify(memories)
 
@@ -786,12 +871,13 @@ def save_memory_route():
     data = get_json_body()
     text = (data.get("text") or "").strip()
     tag = data.get("tag", "decision")
+    user_id = session["user_id"]
     if not text:
         return jsonify({"error": "Text required"}), 400
     mem_id = str(uuid.uuid4())
     saved_at = now_str()
     with get_db_connection() as conn:
-        conn.execute("INSERT INTO memories (id, text, tag, saved_at) VALUES (?, ?, ?, ?)", (mem_id, text, tag, saved_at))
+        conn.execute("INSERT INTO memories (id, text, tag, saved_at, user_id) VALUES (?, ?, ?, ?, ?)", (mem_id, text, tag, saved_at, user_id))
         conn.commit()
     save_memory_hindsight(f"[{saved_at}]\n{text}")
     analytics_store["memories_saved"] += 1

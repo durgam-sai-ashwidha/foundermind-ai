@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 import json
@@ -12,16 +12,19 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+import asyncio
+
 # Hindsight Python SDK
 from hindsight_client import Hindsight
 
 # Cascadeflow Python SDK
 from cascadeflow import CascadeAgent, ModelConfig, CascadeResult
+from groq import Groq
 
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_FILENAME = "FounderMind_Enhanced_fixed.html"
+FRONTEND_FILENAME = "index.html"
 DB_PATH = os.path.join(BASE_DIR, "foundermind.db")
 
 app = Flask(__name__, static_folder=None)
@@ -29,6 +32,7 @@ CORS(app)
 
 # Keys
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 HINDSIGHT_API_KEY = os.getenv("HINDSIGHT_API_KEY")
 HINDSIGHT_PIPELINE_ID = os.getenv("HINDSIGHT_PIPELINE_ID", "foundermind")
 HINDSIGHT_BASE_URL = os.getenv("HINDSIGHT_BASE_URL", "https://api.hindsight.vectorize.io")
@@ -36,6 +40,29 @@ HINDSIGHT_BASE_URL = os.getenv("HINDSIGHT_BASE_URL", "https://api.hindsight.vect
 print(f"[Groq Key]:      {'[OK]' if GROQ_API_KEY else '[MISSING]'}")
 print(f"[Hindsight Key]: {'[OK]' if HINDSIGHT_API_KEY else '[MISSING]'}")
 print(f"[Pipeline ID]:   {'[OK]' if HINDSIGHT_PIPELINE_ID else '[MISSING]'}")
+
+def run_async(coro_or_func, *args, **kwargs):
+    """Safely execute async function or coroutine in synchronous Flask contexts."""
+    async def _runner():
+        if asyncio.iscoroutine(coro_or_func):
+            return await coro_or_func
+        elif asyncio.iscoroutinefunction(coro_or_func):
+            return await coro_or_func(*args, **kwargs)
+        elif callable(coro_or_func):
+            res = coro_or_func(*args, **kwargs)
+            if asyncio.iscoroutine(res):
+                return await res
+            return res
+        return coro_or_func
+
+    try:
+        return asyncio.run(_runner())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_runner())
+        finally:
+            loop.close()
 
 # DB
 def get_db_connection():
@@ -51,6 +78,18 @@ def init_db():
         c.execute("""CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT DEFAULT 'Other', icon TEXT DEFAULT 'doc', created_at TEXT NOT NULL)""")
         c.execute("""CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, text TEXT NOT NULL, tag TEXT DEFAULT 'decision', saved_at TEXT NOT NULL)""")
         c.execute("""CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, event TEXT NOT NULL, model_used TEXT DEFAULT '', model_alias TEXT DEFAULT '', rationale TEXT DEFAULT '', cost_usd REAL DEFAULT 0.0, cost_saved_usd REAL DEFAULT 0.0, latency_ms REAL DEFAULT 0.0, is_fast_model INTEGER DEFAULT 0, cascaded INTEGER DEFAULT 0)""")
+        
+        # Run table info schema migration check
+        c.execute("PRAGMA table_info(audit_logs)")
+        existing_cols = {row["name"] for row in c.fetchall()}
+        if "model_alias" not in existing_cols:
+            c.execute("ALTER TABLE audit_logs ADD COLUMN model_alias TEXT DEFAULT ''")
+        if "model_used" not in existing_cols:
+            c.execute("ALTER TABLE audit_logs ADD COLUMN model_used TEXT DEFAULT ''")
+        if "rationale" not in existing_cols:
+            c.execute("ALTER TABLE audit_logs ADD COLUMN rationale TEXT DEFAULT ''")
+        if "cost_saved_usd" not in existing_cols:
+            c.execute("ALTER TABLE audit_logs ADD COLUMN cost_saved_usd REAL DEFAULT 0.0")
         conn.commit()
 
 init_db()
@@ -64,8 +103,8 @@ if HINDSIGHT_API_KEY:
     except Exception as e:
         print(f"[Hindsight Init Warning]: {e}")
 
-low_cost_model = ModelConfig(name="groq/llama-3.1-8b-instant", provider="groq", api_key=GROQ_API_KEY, cost=0.08, speed_ms=500, quality_score=0.6, keywords=["hi","hello","hey","task","meeting","todo","done","list","schedule","thanks","bye","ok"])
-high_capacity_model = ModelConfig(name="groq/llama-3.3-70b-versatile", provider="groq", api_key=GROQ_API_KEY, cost=0.79, speed_ms=1500, quality_score=0.95, keywords=["fundraising","investor","pitch","strategy","decision","prep","revenue","mrr","burn","runway","founder","architecture","complex"])
+low_cost_model = ModelConfig(name="llama-3.1-8b-instant", provider="groq", api_key=GROQ_API_KEY, cost=0.08, speed_ms=500, quality_score=0.6, keywords=["hi","hello","hey","task","meeting","todo","done","list","schedule","thanks","bye","ok"])
+high_capacity_model = ModelConfig(name="llama-3.3-70b-versatile", provider="groq", api_key=GROQ_API_KEY, cost=0.79, speed_ms=1500, quality_score=0.95, keywords=["fundraising","investor","pitch","strategy","decision","prep","revenue","mrr","burn","runway","founder","architecture","complex"])
 
 cascade_agent = None
 if GROQ_API_KEY:
@@ -104,10 +143,16 @@ def log_audit(event, model_used="", model_alias="", rationale="", cost_usd=0.0, 
         print(f"[Audit Log DB Error]: {e}")
 
 def save_memory_hindsight(content):
-    if not hindsight_client or not HINDSIGHT_PIPELINE_ID:
+    if not HINDSIGHT_API_KEY or not HINDSIGHT_PIPELINE_ID:
         return False
+    async def _async_retain():
+        client = Hindsight(base_url=HINDSIGHT_BASE_URL, api_key=HINDSIGHT_API_KEY)
+        try:
+            return await client.aretain(bank_id=HINDSIGHT_PIPELINE_ID, content=content)
+        finally:
+            await client.aclose()
     try:
-        hindsight_client.retain(bank_id=HINDSIGHT_PIPELINE_ID, content=content)
+        run_async(_async_retain)
         log_audit("Memory retain via Hindsight SDK")
         analytics_store["routing"]["hindsight_save"] += 1
         return True
@@ -116,10 +161,16 @@ def save_memory_hindsight(content):
         return False
 
 def recall_memories_hindsight(query):
-    if not hindsight_client or not HINDSIGHT_PIPELINE_ID:
+    if not HINDSIGHT_API_KEY or not HINDSIGHT_PIPELINE_ID:
         return ""
+    async def _async_recall():
+        client = Hindsight(base_url=HINDSIGHT_BASE_URL, api_key=HINDSIGHT_API_KEY)
+        try:
+            return await client.arecall(bank_id=HINDSIGHT_PIPELINE_ID, query=query)
+        finally:
+            await client.aclose()
     try:
-        response = hindsight_client.recall(bank_id=HINDSIGHT_PIPELINE_ID, query=query)
+        response = run_async(_async_recall)
         mems = []
         if hasattr(response, 'results') and response.results:
             for item in response.results:
@@ -147,7 +198,7 @@ def classify_intent(message):
 
 def ask_cascadeflow(user_message, long_term_memories=""):
     global conversation_history
-    if cascade_agent is None:
+    if cascade_agent is None and groq_client is None:
         log_audit("Cascadeflow call skipped -- no API key")
         return {"reply": "Groq/Cascadeflow API Error: GROQ_API_KEY missing. Add it to .env and restart.", "tokens": 0, "cost_usd": 0.0, "cost_saved_usd": 0.0, "latency_ms": 0.0, "model_used": "none", "model_alias": "none", "is_fast_model": False, "cascaded": False, "error": True}
 
@@ -183,13 +234,28 @@ YOUR RULES:
 
     start_time = time.time()
     try:
-        result = cascade_agent.run(query=full_query, max_tokens=600, temperature=0.1, complexity_hint=complexity_hint)
+        result = None
+        if cascade_agent:
+            result = run_async(cascade_agent.run, query=full_query, max_tokens=600, temperature=0.1, complexity_hint=complexity_hint)
+        
         latency_ms = round((time.time() - start_time) * 1000, 2)
+        reply = getattr(result, "content", "") if result else ""
+        if not reply or not isinstance(reply, str):
+            reply = str(result) if result else ""
 
-        reply = getattr(result, "content", "") or str(result)
-        model_used = getattr(result, "model_used", "groq/llama-3.3-70b-versatile")
+        # Fallback to direct Groq client if cascade agent returned empty string
+        if not reply.strip() and groq_client:
+            groq_resp = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
+                max_tokens=600,
+                temperature=0.1,
+            )
+            reply = groq_resp.choices[0].message.content
+
+        model_used = getattr(result, "model_used", "groq/llama-3.3-70b-versatile") if result else "groq/llama-3.3-70b-versatile"
         cost_usd = getattr(result, "total_cost", None) or getattr(result, "draft_cost", 0.0001) or 0.0001
-        cascaded = bool(getattr(result, "cascaded", False))
+        cascaded = bool(getattr(result, "cascaded", False)) if result else False
 
         tokens = len(reply.split()) * 2
         conversation_history.append({"role": "user", "content": user_message})
@@ -227,6 +293,24 @@ YOUR RULES:
         err_text = str(e)
         latency_ms = round((time.time() - start_time) * 1000, 2)
         print(f"[Cascadeflow Error]: {err_text}")
+        # Try direct Groq fallback on error
+        if groq_client:
+            try:
+                groq_resp = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
+                    max_tokens=600,
+                    temperature=0.1,
+                )
+                reply = groq_resp.choices[0].message.content
+                tokens = len(reply.split()) * 2
+                conversation_history.append({"role": "user", "content": user_message})
+                conversation_history.append({"role": "assistant", "content": reply})
+                log_audit(f"Groq Direct Fallback (70b) ({tokens} tokens)", model_used="llama-3.3-70b-versatile", model_alias="70B Heavy Model", rationale="Direct Groq API call", cost_usd=0.0001, latency_ms=latency_ms, is_fast_model=False, cascaded=False)
+                return {"reply": reply, "tokens": tokens, "cost_usd": 0.0001, "cost_saved_usd": 0.0, "latency_ms": latency_ms, "model_used": "groq/llama-3.3-70b-versatile", "model_alias": "70B Heavy Model", "is_fast_model": False, "cascaded": False, "error": False}
+            except Exception as ge:
+                err_text = f"{err_text} | Fallback Error: {ge}"
+
         log_audit(f"Cascadeflow call failed -- {err_text[:80]}")
         return {"reply": f"Cascadeflow Error: {err_text}", "tokens": 0, "cost_usd": 0.0, "cost_saved_usd": 0.0, "latency_ms": latency_ms, "model_used": "error", "model_alias": "error", "is_fast_model": False, "cascaded": False, "error": True}
 

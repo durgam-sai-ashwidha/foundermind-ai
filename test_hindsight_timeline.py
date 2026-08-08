@@ -33,7 +33,7 @@ load_dotenv()
 
 # Import hindsight_manager and server groq wrapper
 from hindsight_manager import HindsightManager, classify_memory_tag
-from server import ask_groq, groq_completion
+from server import ask_cascadeflow
 
 
 def run_timeline_test():
@@ -132,7 +132,7 @@ def run_timeline_test():
 
     # Step 4b: Pass prompt + recalled memories into Groq LLM
     print("🤖 Generating AI Response via Groq (with Hindsight context injection)...")
-    ai_response_dict = ask_groq(user_prompt, long_term_memories=formatted_context)
+    ai_response_dict = ask_cascadeflow(user_prompt, long_term_memories=formatted_context)
     reply_text = ai_response_dict.get("reply", "")
 
     print("\nFounderMind Drafted Response:")

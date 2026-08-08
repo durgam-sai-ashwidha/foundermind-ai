@@ -26,6 +26,19 @@ from hindsight_client import Hindsight
 
 load_dotenv()
 
+import asyncio
+
+def run_async(coro):
+    """Safely run an async coroutine inside synchronous contexts/Flask requests."""
+    try:
+        return asyncio.run(coro)
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+
 
 # ══════════════════════════════════════════════════════════
 #  STARTUP MEMORY TAXONOMY & SCHEMA
@@ -134,13 +147,20 @@ class HindsightManager:
             for k, v in metadata.items():
                 meta[str(k)] = str(v)
 
+        async def _async_retain():
+            client = Hindsight(base_url=self.base_url, api_key=self.api_key)
+            try:
+                return await client.aretain(
+                    bank_id=target_bank,
+                    content=content,
+                    tags=[resolved_tag],
+                    metadata=meta,
+                )
+            finally:
+                await client.aclose()
+
         try:
-            response = self.client.retain(
-                bank_id=target_bank,
-                content=content,
-                tags=[resolved_tag],
-                metadata=meta,
-            )
+            response = run_async(_async_retain())
             print(f"[HindsightManager] ✅ Saved memory under tag '{resolved_tag}' to bank '{target_bank}'")
             return {
                 "success": getattr(response, "success", True),
@@ -169,12 +189,19 @@ class HindsightManager:
             return []
 
         target_bank = bank_id or self.pipeline_id
+        async def _async_recall():
+            client = Hindsight(base_url=self.base_url, api_key=self.api_key)
+            try:
+                return await client.arecall(
+                    bank_id=target_bank,
+                    query=query,
+                    tags=tags,
+                )
+            finally:
+                await client.aclose()
+
         try:
-            response = self.client.recall(
-                bank_id=target_bank,
-                query=query,
-                tags=tags,
-            )
+            response = run_async(_async_recall())
             results = getattr(response, "results", []) or []
 
             recalled_list = []

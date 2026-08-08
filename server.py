@@ -745,6 +745,44 @@ def search_memories_route():
     return jsonify({"query": query, "results": result})
 
 
+@app.route("/memories/hindsight", methods=["GET"])
+def sync_hindsight_memories_route():
+    """Sync durable memories from Hindsight Cloud into the local SQLite mirror."""
+    if not hindsight_client or not HINDSIGHT_PIPELINE_ID:
+        return jsonify({"error": "Hindsight not configured", "memories": []}), 503
+    try:
+        response = hindsight_client.recall(bank_id=HINDSIGHT_PIPELINE_ID, query="", budget="high")
+        synced = []
+        if hasattr(response, "results") and response.results:
+            for item in response.results:
+                text = getattr(item, "text", "")
+                tags = getattr(item, "tags", None) or []
+                tag = tags[0] if tags else "decision"
+                mem_id = getattr(item, "id", None) or str(uuid.uuid4())
+                saved_at = now_str()
+                if text:
+                    synced.append({"id": mem_id, "text": text, "tag": tag, "saved_at": saved_at})
+                    # Upsert into SQLite mirror
+                    try:
+                        with get_db_connection() as conn:
+                            conn.execute(
+                                "INSERT OR IGNORE INTO memories (id, text, tag, saved_at) VALUES (?, ?, ?, ?)",
+                                (mem_id, text, tag, saved_at)
+                            )
+                            conn.commit()
+                    except Exception:
+                        pass
+        log_audit(f"Hindsight sync -- {len(synced)} memories pulled from cloud")
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, text, tag, saved_at FROM memories ORDER BY saved_at DESC")
+            all_mems = [dict(r) for r in cursor.fetchall()]
+        return jsonify({"status": "synced", "count": len(all_mems), "memories": all_mems})
+    except Exception as e:
+        print(f"[Hindsight Sync Error]: {e}")
+        return jsonify({"error": str(e), "memories": []}), 500
+
+
 @app.route("/memories", methods=["POST"])
 def save_memory_route():
     data = get_json_body()
@@ -881,6 +919,7 @@ if __name__ == "__main__":
     print("  GET   /documents  POST       - List / add documents (SQLite)")
     print("  DEL   /documents/<id>        - Delete document (SQLite)")
     print("  GET   /memories  POST        - List / save memories (SQLite)")
+    print("  GET   /memories/hindsight    - Sync memories from Hindsight Cloud -> SQLite")
     print("  GET   /memories/search       - Hindsight SDK semantic search")
     print("  DEL   /memories/<id>         - Delete memory (SQLite)")
     print("  GET   /analytics             - Execution & routing metadata")

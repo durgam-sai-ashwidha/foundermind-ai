@@ -21,60 +21,17 @@ if not GROQ_API_KEY or not HINDSIGHT_API_KEY:
 # ── Groq Client ───────────────────────────────────────────
 client = Groq(api_key=GROQ_API_KEY)
 
-# ── Hindsight Memory Functions ────────────────────────────
-def save_memory(content: str):
-    """Save a memory to Hindsight"""
-    try:
-        import urllib.request
-        data = json.dumps({
-            "pipeline_id": HINDSIGHT_PIPELINE_ID,
-            "content": content,
-            "metadata": {"timestamp": str(datetime.datetime.now())}
-        }).encode("utf-8")
+from hindsight_manager import hindsight_mgr
 
-        req = urllib.request.Request(
-            "https://api.hindsight.vectorize.io/v1/memories",
-            data=data,
-            headers={
-                "Authorization": f"Bearer {HINDSIGHT_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            method="POST"
-        )
-        with urllib.request.urlopen(req) as response:
-            return json.loads(response.read())
-    except Exception as e:
-        print(f"[Memory Save Error]: {e}")
-        return None
+def save_memory(content: str, tag: str | None = None):
+    """Save a memory to Hindsight using SDK"""
+    return hindsight_mgr.retain_memory(content, tag=tag)
 
 
 def recall_memories(query: str):
-    """Recall relevant memories from Hindsight"""
-    try:
-        import urllib.request
-        import urllib.parse
-        params = urllib.parse.urlencode({
-            "pipeline_id": HINDSIGHT_PIPELINE_ID,
-            "query": query,
-            "limit": 5
-        })
-        req = urllib.request.Request(
-            f"https://api.hindsight.vectorize.io/v1/memories/search?{params}",
-            headers={
-                "Authorization": f"Bearer {HINDSIGHT_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            method="GET"
-        )
-        with urllib.request.urlopen(req) as response:
-            result = json.loads(response.read())
-            memories = result.get("memories", [])
-            if memories:
-                return "\n".join([m.get("content", "") for m in memories])
-            return "No previous memories found."
-    except Exception as e:
-        print(f"[Memory Recall Error]: {e}")
-        return "No previous memories found."
+    """Recall relevant memories from Hindsight using SDK"""
+    ctx = hindsight_mgr.get_formatted_memory_context(query)
+    return ctx if ctx else "No previous memories found."
 
 
 # ── cascadeflow Budget Control ────────────────────────────

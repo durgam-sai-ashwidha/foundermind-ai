@@ -212,10 +212,11 @@ def ask_cascadeflow(user_message, long_term_memories=""):
     task_ctx = ("\n\nOPEN TASKS:\n" + "\n".join(f"- [{t['priority'].upper()}] {t['text']}" for t in open_tasks)) if open_tasks else ""
     meeting_ctx = ("\n\nUPCOMING MEETINGS:\n" + "\n".join(f"- {m['title']} on {m['date'] or 'TBD'} at {m['time'] or 'TBD'} with {m['with_'] or '--'}" for m in upcoming_meetings)) if upcoming_meetings else ""
 
+    mem_text = long_term_memories[:3000] if long_term_memories else "No past session memories yet."
     system_prompt = f"""You are FounderMind -- an elite AI Chief of Staff for startup founders.
 You have TWO sources of memory:
 1. LONG-TERM MEMORIES (from past sessions):
-{long_term_memories if long_term_memories else "No past session memories yet."}
+{mem_text}
 2. CURRENT SESSION HISTORY (included in this conversation).
 {task_ctx}
 {meeting_ctx}
@@ -239,19 +240,21 @@ YOUR RULES:
             result = run_async(cascade_agent.run, query=full_query, max_tokens=600, temperature=0.1, complexity_hint=complexity_hint)
         
         latency_ms = round((time.time() - start_time) * 1000, 2)
-        reply = getattr(result, "content", "") if result else ""
-        if not reply or not isinstance(reply, str):
-            reply = str(result) if result else ""
+        raw_reply = getattr(result, "content", "") if result else ""
+        reply = raw_reply if isinstance(raw_reply, str) else ""
 
-        # Fallback to direct Groq client if cascade agent returned empty string
+        # Fallback to direct Groq client if cascade agent returned empty response or failed
         if not reply.strip() and groq_client:
-            groq_resp = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
-                max_tokens=600,
-                temperature=0.1,
-            )
-            reply = groq_resp.choices[0].message.content
+            try:
+                groq_resp = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
+                    max_tokens=600,
+                    temperature=0.1,
+                )
+                reply = groq_resp.choices[0].message.content or ""
+            except Exception as fe:
+                print(f"[Groq Direct Fallback Error]: {fe}")
 
         model_used = getattr(result, "model_used", "groq/llama-3.3-70b-versatile") if result else "groq/llama-3.3-70b-versatile"
         cost_usd = getattr(result, "total_cost", None) or getattr(result, "draft_cost", 0.0001) or 0.0001

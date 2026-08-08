@@ -691,14 +691,13 @@ async function loadAll(){
   document.getElementById('apiBaseInput').value=API_BASE;
   checkHealth();
   try{
-    const [t,m,d,memRes]=await Promise.all([
-      apiGet('/tasks'),apiGet('/meetings'),apiGet('/documents'),apiGet('/memories/hindsight')
+    const [t,m,d,mem]=await Promise.all([
+      apiGet('/tasks'),apiGet('/meetings'),apiGet('/documents'),apiGet('/memories')
     ]);
     tasks=t.map(x=>({id:x.id,text:x.text,priority:x.priority,done:x.done}));
     meetings=m.map(x=>({id:x.id,title:x.title,date:x.date,time:x.time,with:x.with_}));
     documents=d;
-    const memList = Array.isArray(memRes) ? memRes : (memRes.memories || []);
-    memories=memList.map(x=>({id:x.id,text:x.text,tag:x.tag || 'decision',time:x.saved_at || x.time || ''}));
+    memories=mem.map(x=>({id:x.id,text:x.text,tag:x.tag,time:x.saved_at}));
     memCount=memories.length;
     const memCountEl=document.getElementById('memCount');
     if(memCountEl)memCountEl.textContent=memCount;

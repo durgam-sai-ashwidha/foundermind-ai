@@ -138,7 +138,7 @@ def init_db():
         except Exception:
             pass  # Column already exists
         # Pre-seed default demo user 'founder' if not present
-        c.execute("SELECT id FROM users WHERE username = 'founder'")
+        c.execute("SELECT id FROM users WHERE LOWER(username) = 'founder'")
         if not c.fetchone():
             pw_hash = hash_password("founder123")
             c.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)", ("founder", "founder@startup.com", pw_hash))

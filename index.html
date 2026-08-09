@@ -409,9 +409,6 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
       📥
     </div>
 
-    <div class="header-icon-btn" id="helpModalBtn" style="cursor: pointer; font-size: 1.1rem; padding: 6px; color: var(--text);" title="Help &amp; System Status (?)" onclick="openHelpModal()">
-      ❓
-    </div>
 
     <div class="status-pill"><div class="status-dot"></div>🟢 Online &amp; Remembering</div>
   </div>
@@ -495,8 +492,8 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 6px;">
-        <span title="Toggle Theme" onclick="toggleTheme()" style="cursor:pointer;font-size:0.85rem;padding:4px;border-radius:4px;background:rgba(255,255,255,0.06);">🌙</span>
-        <span title="Help" onclick="showToast('FounderMind Support: help@foundermind.ai','info','❓')" style="cursor:pointer;font-size:0.85rem;padding:4px;border-radius:4px;background:rgba(255,255,255,0.06);">❓</span>
+        <span title="Toggle Theme" id="themeIconBtn" onclick="toggleTheme()" style="cursor:pointer;font-size:0.85rem;padding:4px;border-radius:4px;background:rgba(255,255,255,0.06);">🌙</span>
+        <span title="Help" onclick="openHelpModal()" style="cursor:pointer;font-size:0.85rem;padding:4px;border-radius:4px;background:rgba(255,255,255,0.06);">❓</span>
         <span title="Logout" onclick="handleLogout()" style="cursor:pointer;font-size:0.85rem;padding:4px;border-radius:4px;background:rgba(255,255,255,0.06);">🚪</span>
       </div>
     </div>
@@ -1326,6 +1323,8 @@ function toggleTheme(){
   const t2=document.getElementById('themeToggle2');
   if(t1){t1.classList.toggle('on',isDark);}
   if(t2){t2.classList.toggle('on',isDark);}
+  const btn = document.getElementById('themeIconBtn');
+  if(btn) btn.innerHTML = isDark ? '🌙' : '☀️';
 }
 
 // ===== CHAT =====
@@ -1997,7 +1996,6 @@ renderMeetings();
 
       <button type="submit" id="authSubmitBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); transition: transform 0.1s; margin-bottom: 12px;">Sign In</button>
       
-      <button type="button" onclick="quickDemoLogin()" style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.06); color: #cbd5e1; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;">⚡ Quick Demo Login (Instant Access)</button>
     </form>
   </div>
 </div>

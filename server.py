@@ -264,7 +264,7 @@ def ask_cascadeflow(user_message, long_term_memories="", current_user="Founder")
         meeting_ctx = ("\n\nUPCOMING MEETINGS:\n" + "\n".join(f"- {m['title']} on {m['date'] or 'TBD'} at {m['time'] or 'TBD'} with {m['with_'] or '--'}" for m in upcoming_meetings)) if upcoming_meetings else ""
         mem_text = long_term_memories[:3000] if long_term_memories else "No past session memories yet."
 
-    system_prompt = f"""You are FounderMind, an intelligent, helpful, and direct AI assistant assisting {current_user}, the Founder & CEO. Deliver clear, concise, accurate, and direct responses matching standard ChatGPT/Gemini behavior. Never hallucinate random corporate scenarios, investor briefing templates, or fictional meeting contexts (e.g. Sequoia Capital, ACV, 2-minute timers) unless explicitly provided in the user prompt or relevant context.
+    system_prompt = f"""You are FounderMind, an AI Chief of Staff and Founder Operating System. Deliver direct, highly practical, and clear responses like ChatGPT/Gemini. Match response length to query scope. Never invent or hallucinate unrequested background context (such as investor metrics or meeting timers) unless explicitly mentioned in the user prompt or stored context.
 
 You have TWO sources of memory:
 1. LONG-TERM MEMORIES (from past sessions):
@@ -986,6 +986,66 @@ def get_settings():
             "database": {"status": "SQLITE_CONNECTED", "path": DB_PATH}
         },
     })
+
+
+@app.route("/api/insights/generate", methods=["GET"])
+@login_required
+def generate_insights():
+    insights = []
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        
+        # 1. Check open high-priority tasks
+        c.execute("SELECT COUNT(*) FROM tasks WHERE done = 0 AND priority = 'high'")
+        high_tasks_count = c.fetchone()[0]
+        if high_tasks_count > 0:
+            insights.append({
+                "text": f"You have {high_tasks_count} high-priority tasks pending. Let's tackle them.",
+                "action_type": "view_tasks",
+                "action_label": "Resolve Now"
+            })
+            
+        # 2. Check meeting overlaps
+        c.execute("""
+            SELECT date, time, COUNT(*) as cnt 
+            FROM meetings 
+            WHERE date != '' AND time != '' 
+            GROUP BY date, time 
+            HAVING cnt > 1
+        """)
+        overlap = c.fetchone()
+        if overlap:
+            insights.append({
+                "text": f"Schedule conflict detected: Multiple meetings scheduled on {overlap['date']} at {overlap['time']}.",
+                "action_type": "view_meetings",
+                "action_label": "Resolve Conflict"
+            })
+            
+        # 3. Check decisions logged
+        c.execute("SELECT COUNT(*) FROM memories WHERE tag = 'decision'")
+        decisions_count = c.fetchone()[0]
+        if decisions_count == 0:
+            insights.append({
+                "text": "No pricing or strategy decisions logged this week yet.",
+                "action_type": "log_decision",
+                "action_label": "Log Decision"
+            })
+
+        # Add fallback insights if less than 2
+        if len(insights) < 2 and high_tasks_count == 0:
+            insights.append({
+                "text": "Founder Operating System running smoothly. All priorities are clear.",
+                "action_type": "chat_briefing",
+                "action_label": "Ask FounderMind"
+            })
+        if len(insights) < 2:
+            insights.append({
+                "text": "Keep your system updated by scheduling upcoming meetings.",
+                "action_type": "view_meetings",
+                "action_label": "View Calendar"
+            })
+
+    return jsonify(insights[:2])
 
 
 @app.route("/health", methods=["GET"])

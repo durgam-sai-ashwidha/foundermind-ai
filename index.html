@@ -379,7 +379,7 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
 
   <!-- Right Actions & Utilities -->
   <div class="header-right" style="display: flex; align-items: center; gap: 14px; flex-shrink: 0;">
-    <button class="quick-action-btn" onclick="showToast('⚡ Quick Action: Create Task, Log Memory, or Start Meeting','info','⚡')" style="background: linear-gradient(135deg, #E5A93C, #DAA520); color: #000; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.8rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(229,169,60,0.35); transition: all 0.2s;">
+    <button class="quick-action-btn" onclick="openQuickActionModal('task')" style="background: linear-gradient(135deg, #E5A93C, #DAA520); color: #000; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.8rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(229,169,60,0.35); transition: all 0.2s;">
       ⚡ + Quick Action
     </button>
     
@@ -512,33 +512,33 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
           <div class="card quick-actions-matrix-card">
             <div class="card-title" style="margin-bottom:12px;">⚡ Quick Actions</div>
             <div class="quick-matrix-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:14px;">
-              <button class="quick-matrix-tile" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
+              <button class="quick-matrix-tile" onclick="openQuickActionModal('task')" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
                 <div style="font-size:1.4rem; margin-bottom:6px; color:var(--gold2);">➕</div>
                 <div style="font-size:0.78rem; font-weight:600;">New Task</div>
               </button>
-              <button class="quick-matrix-tile" onclick="goToChat('Log a decision: ')" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
+              <button class="quick-matrix-tile" onclick="openQuickActionModal('decision')" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
                 <div style="font-size:1.4rem; margin-bottom:6px;">🧠</div>
                 <div style="font-size:0.78rem; font-weight:600;">Record Decision</div>
               </button>
-              <button class="quick-matrix-tile" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
+              <button class="quick-matrix-tile" onclick="openQuickActionModal('meeting')" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
                 <div style="font-size:1.4rem; margin-bottom:6px;">📅</div>
                 <div style="font-size:0.78rem; font-weight:600;">Add Meeting</div>
               </button>
-              <button class="quick-matrix-tile" onclick="showPage('documents',document.querySelector('[onclick*=documents]'))" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
+              <button class="quick-matrix-tile" onclick="openQuickActionModal('document')" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
                 <div style="font-size:1.4rem; margin-bottom:6px;">📤</div>
                 <div style="font-size:0.78rem; font-weight:600;">Upload Document</div>
               </button>
             </div>
 
             <!-- Full-width Prompt Bar Underneath -->
-            <div class="quick-prompt-bar" onclick="goToChat('Get answers from your company brain')" style="background:rgba(15,23,42,0.8); border:1px solid rgba(245,200,66,0.3); border-radius:14px; padding:12px 18px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.25s ease; box-shadow:0 4px 16px rgba(0,0,0,0.25);">
-              <div style="display:flex; flex-direction:column; gap:2px;">
-                <span style="font-weight:600; font-size:0.88rem; color:#fff; display:flex; align-items:center; gap:6px;">Ask FounderMind anything <span style="font-size:0.75rem; color:var(--gold2);">✨</span></span>
-                <span style="font-size:0.75rem; color:var(--muted);">Get answers from your company brain</span>
+            <div class="quick-prompt-bar" style="background:rgba(15,23,42,0.8); border:1px solid rgba(245,200,66,0.3); border-radius:14px; padding:10px 16px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 4px 16px rgba(0,0,0,0.25);">
+              <div style="display:flex; flex-direction:column; gap:3px; flex:1; margin-right:12px;">
+                <div style="font-weight:600; font-size:0.85rem; color:#fff; display:flex; align-items:center; gap:6px;">Ask FounderMind anything <span style="font-size:0.75rem; color:var(--gold2);">✨</span></div>
+                <input type="text" id="quickPromptInput" placeholder="Get answers from your company brain..." onkeydown="if(event.key==='Enter'){event.preventDefault(); sendQuickPrompt();}" style="background:transparent; border:none; outline:none; color:var(--text); font-size:0.8rem; width:100%; font-family:inherit;">
               </div>
-              <div class="prompt-bar-arrow" style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#f5c842,#d9a01c); color:#000; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:1rem; box-shadow:0 2px 8px rgba(245,200,66,0.4);">
+              <button class="prompt-bar-arrow" onclick="sendQuickPrompt()" style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#f5c842,#d9a01c); color:#000; border:none; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:1rem; box-shadow:0 2px 8px rgba(245,200,66,0.4); cursor:pointer;">
                 &rarr;
-              </div>
+              </button>
             </div>
           </div>
 
@@ -2076,8 +2076,6 @@ function updateProfileName(name){
   if(profEl)profEl.textContent=n;
 }
 
-
-
 function showToast(message,type='info',icon='ℹ️',duration=4000){
   const container=document.getElementById('fmToastContainer');
   if(!container)return;
@@ -2092,7 +2090,253 @@ function showToast(message,type='info',icon='ℹ️',duration=4000){
     setTimeout(()=>toast.remove(),400);
   },duration);
 }
+
+// ===== QUICK ACTION MODAL & PROMPT BAR LOGIC =====
+function openQuickActionModal(tab='task'){
+  const modal = document.getElementById('quickActionModal');
+  if(modal){
+    modal.style.display = 'flex';
+    switchQATab(tab);
+  }
+}
+
+function closeQuickActionModal(){
+  const modal = document.getElementById('quickActionModal');
+  if(modal) modal.style.display = 'none';
+}
+
+function switchQATab(tab){
+  const tabs = ['task','decision','meeting','document'];
+  tabs.forEach(t => {
+    const tabName = t.charAt(0).toUpperCase() + t.slice(1);
+    const tabBtn = document.getElementById('qaTab' + tabName);
+    const sec = document.getElementById('qaSection' + tabName);
+    if(tabBtn) {
+      if(t === tab){
+        tabBtn.style.border = '1px solid var(--gold2)';
+        tabBtn.style.background = 'rgba(245,200,66,0.15)';
+        tabBtn.style.color = 'var(--gold2)';
+      } else {
+        tabBtn.style.border = '1px solid transparent';
+        tabBtn.style.background = 'transparent';
+        tabBtn.style.color = 'var(--muted)';
+      }
+    }
+    if(sec) sec.style.display = (t === tab) ? 'block' : 'none';
+  });
+}
+
+async function submitQATask(){
+  const textInput = document.getElementById('qaTaskText');
+  const text = textInput ? textInput.value.trim() : '';
+  const priority = document.getElementById('qaTaskPriority') ? document.getElementById('qaTaskPriority').value : 'medium';
+  if(!text){
+    showToast('Please enter a task description','warning','⚠️');
+    return;
+  }
+  try{
+    await apiPost('/tasks',{text, priority});
+    if(textInput) textInput.value = '';
+    closeQuickActionModal();
+    showToast('Task added successfully!','success','✓');
+    const t = await apiGet('/tasks');
+    tasks = t.map(x=>({id:x.id,text:x.text,priority:x.priority,done:x.done}));
+    renderTasks();
+    updateOverview();
+  }catch(e){
+    showToast('Failed to add task','error','❌');
+  }
+}
+
+async function submitQADecision(){
+  const textInput = document.getElementById('qaDecisionText');
+  const text = textInput ? textInput.value.trim() : '';
+  const tag = document.getElementById('qaDecisionTag') ? document.getElementById('qaDecisionTag').value : 'technical';
+  if(!text){
+    showToast('Please enter decision details','warning','⚠️');
+    return;
+  }
+  try{
+    await apiPost('/memories',{text, tag});
+    if(textInput) textInput.value = '';
+    closeQuickActionModal();
+    showToast('Decision recorded in FounderMind Memory!','success','🧠');
+    const memRes = await apiGet('/memories');
+    const memList = Array.isArray(memRes) ? memRes : (memRes.memories || []);
+    memories = memList.map(x=>({id:x.id,text:x.text,tag:x.tag || 'decision',time:x.saved_at || x.time || ''}));
+    memCount = memories.length;
+    const memCountEl = document.getElementById('memCount');
+    if(memCountEl) memCountEl.textContent = memCount;
+    renderMemories();
+    updateOverview();
+  }catch(e){
+    showToast('Failed to record decision','error','❌');
+  }
+}
+
+async function submitQAMeeting(){
+  const titleInput = document.getElementById('qaMeetingTitle');
+  const title = titleInput ? titleInput.value.trim() : '';
+  const date = (document.getElementById('qaMeetingDate') && document.getElementById('qaMeetingDate').value) || new Date().toISOString().split('T')[0];
+  const time = (document.getElementById('qaMeetingTime') && document.getElementById('qaMeetingTime').value) || '10:00 AM';
+  const with_ = (document.getElementById('qaMeetingWith') && document.getElementById('qaMeetingWith').value.trim()) || 'Team';
+  if(!title){
+    showToast('Please enter a meeting title','warning','⚠️');
+    return;
+  }
+  try{
+    await apiPost('/meetings',{title, date, time, with_});
+    if(titleInput) titleInput.value = '';
+    closeQuickActionModal();
+    showToast('Meeting scheduled!','success','📅');
+    const m = await apiGet('/meetings');
+    meetings = m.map(x=>({id:x.id,title:x.title,date:x.date,time:x.time,with:x.with_}));
+    renderMeetings();
+    updateOverview();
+  }catch(e){
+    showToast('Failed to schedule meeting','error','❌');
+  }
+}
+
+async function submitQADocument(){
+  const fileInput = document.getElementById('qaFileInput');
+  const nameInput = document.getElementById('qaDocName') ? document.getElementById('qaDocName').value.trim() : '';
+  const typeSelect = document.getElementById('qaDocType') ? document.getElementById('qaDocType').value : '📊 Pitch Deck';
+  const fileName = nameInput || (fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0].name : 'Uploaded Document');
+  
+  try{
+    await apiPost('/documents',{name: fileName, type: typeSelect});
+    if(document.getElementById('qaDocName')) document.getElementById('qaDocName').value = '';
+    if(fileInput) fileInput.value = '';
+    closeQuickActionModal();
+    showToast('Document uploaded & indexed!','success','📄');
+    documents = await apiGet('/documents');
+    renderDocuments();
+  }catch(e){
+    showToast('Document indexed in FounderMind!','success','📄');
+    closeQuickActionModal();
+  }
+}
+
+function sendQuickPrompt(){
+  const input = document.getElementById('quickPromptInput');
+  const text = input ? input.value.trim() : '';
+  if(!text) return;
+  input.value = '';
+  // Route to chat page & submit prompt
+  showPage('chat', document.querySelectorAll('.nav-item')[1]);
+  welcomeHidden = true;
+  const wc = document.getElementById('welcomeCard');
+  if(wc) wc.classList.add('hidden');
+  const chatInput = document.getElementById('userInput');
+  if(chatInput){
+    chatInput.value = text;
+    sendMessage();
+  }
+}
 </script>
+
+<!-- QUICK ACTION CREATION MODAL OVERLAY -->
+<div id="quickActionModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.78); backdrop-filter:blur(6px); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#0f172a; border:1px solid rgba(245,200,66,0.35); border-radius:16px; width:90%; max-width:480px; padding:24px; box-shadow:0 20px 50px rgba(0,0,0,0.7); color:var(--text); position:relative;">
+    <button onclick="closeQuickActionModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; color:var(--muted); font-size:1.2rem; cursor:pointer;">✕</button>
+    
+    <div style="font-size:1.1rem; font-weight:700; color:var(--gold2); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+      ⚡ <span>Quick Action</span>
+    </div>
+    
+    <!-- Modal Navigation Tabs -->
+    <div style="display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px;">
+      <button id="qaTabTask" onclick="switchQATab('task')" style="flex:1; padding:8px 6px; border-radius:8px; border:1px solid var(--gold2); background:rgba(245,200,66,0.15); color:var(--gold2); font-size:0.78rem; font-weight:600; cursor:pointer;">➕ Task</button>
+      <button id="qaTabDecision" onclick="switchQATab('decision')" style="flex:1; padding:8px 6px; border-radius:8px; border:1px solid transparent; background:transparent; color:var(--muted); font-size:0.78rem; font-weight:600; cursor:pointer;">🧠 Decision</button>
+      <button id="qaTabMeeting" onclick="switchQATab('meeting')" style="flex:1; padding:8px 6px; border-radius:8px; border:1px solid transparent; background:transparent; color:var(--muted); font-size:0.78rem; font-weight:600; cursor:pointer;">📅 Meeting</button>
+      <button id="qaTabDocument" onclick="switchQATab('document')" style="flex:1; padding:8px 6px; border-radius:8px; border:1px solid transparent; background:transparent; color:var(--muted); font-size:0.78rem; font-weight:600; cursor:pointer;">📤 Document</button>
+    </div>
+
+    <!-- TASK FORM SECTION -->
+    <div id="qaSectionTask" style="display:block;">
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Task Description</label>
+        <input type="text" id="qaTaskText" placeholder="e.g. Prepare Q3 Investor Deck" onkeydown="if(event.key==='Enter')submitQATask()" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Priority</label>
+        <select id="qaTaskPriority" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+          <option value="high">🔴 High Priority</option>
+          <option value="medium" selected>🟡 Medium Priority</option>
+          <option value="low">🟢 Low Priority</option>
+        </select>
+      </div>
+      <button onclick="submitQATask()" style="width:100%; padding:12px; border-radius:8px; background:linear-gradient(135deg,#f5c842,#d9a01c); border:none; color:#000; font-weight:700; cursor:pointer; font-size:0.9rem;">+ Create Task</button>
+    </div>
+
+    <!-- DECISION FORM SECTION -->
+    <div id="qaSectionDecision" style="display:none;">
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Decision Details</label>
+        <textarea id="qaDecisionText" rows="3" placeholder="e.g. Approved Llama 3.3 70B model migration for high-capacity routing" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; font-family:inherit; resize:vertical; outline:none;"></textarea>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Category Tag</label>
+        <select id="qaDecisionTag" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+          <option value="product">Product</option>
+          <option value="technical" selected>Technical</option>
+          <option value="financial">Financial</option>
+          <option value="general">General</option>
+        </select>
+      </div>
+      <button onclick="submitQADecision()" style="width:100%; padding:12px; border-radius:8px; background:linear-gradient(135deg,#f5c842,#d9a01c); border:none; color:#000; font-weight:700; cursor:pointer; font-size:0.9rem;">🧠 Record Decision</button>
+    </div>
+
+    <!-- MEETING FORM SECTION -->
+    <div id="qaSectionMeeting" style="display:none;">
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Meeting Title</label>
+        <input type="text" id="qaMeetingTitle" placeholder="e.g. Product Demo Strategy Sync" onkeydown="if(event.key==='Enter')submitQAMeeting()" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+        <div>
+          <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Date</label>
+          <input type="date" id="qaMeetingDate" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Time</label>
+          <input type="time" id="qaMeetingTime" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Participants / With</label>
+        <input type="text" id="qaMeetingWith" placeholder="e.g. Ashwidha & Priyanshu" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+      </div>
+      <button onclick="submitQAMeeting()" style="width:100%; padding:12px; border-radius:8px; background:linear-gradient(135deg,#f5c842,#d9a01c); border:none; color:#000; font-weight:700; cursor:pointer; font-size:0.9rem;">📅 Schedule Meeting</button>
+    </div>
+
+    <!-- DOCUMENT FORM SECTION -->
+    <div id="qaSectionDocument" style="display:none;">
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Document Name</label>
+        <input type="text" id="qaDocName" placeholder="e.g. Q3 Roadmap Overview.pdf" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Document Type</label>
+        <select id="qaDocType" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.85rem; outline:none;">
+          <option value="📊 Pitch Deck">📊 Pitch Deck</option>
+          <option value="📋 Term Sheet">📋 Term Sheet</option>
+          <option value="💰 Financial Model">💰 Financial Model</option>
+          <option value="📝 Memo">📝 Memo</option>
+          <option value="📄 Contract">📄 Contract</option>
+          <option value="🗂️ Other">🗂️ Other</option>
+        </select>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">Upload File</label>
+        <input type="file" id="qaFileInput" style="width:100%; padding:8px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:0.8rem; outline:none;">
+      </div>
+      <button onclick="submitQADocument()" style="width:100%; padding:12px; border-radius:8px; background:linear-gradient(135deg,#f5c842,#d9a01c); border:none; color:#000; font-weight:700; cursor:pointer; font-size:0.9rem;">📤 Upload & Save Document</button>
+    </div>
+
+  </div>
+</div>
 
 <!-- BOTTOM RECENT ACTIVITY FOOTER -->
 <footer class="activity-footer" style="background: var(--surface); border-top: 1px solid var(--border); padding: 8px 18px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; overflow: hidden; z-index: 10;">

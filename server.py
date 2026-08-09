@@ -264,7 +264,7 @@ def ask_cascadeflow(user_message, long_term_memories="", current_user="Founder")
         meeting_ctx = ("\n\nUPCOMING MEETINGS:\n" + "\n".join(f"- {m['title']} on {m['date'] or 'TBD'} at {m['time'] or 'TBD'} with {m['with_'] or '--'}" for m in upcoming_meetings)) if upcoming_meetings else ""
         mem_text = long_term_memories[:3000] if long_term_memories else "No past session memories yet."
 
-    system_prompt = f"""You are FounderMind, an intelligent, helpful, and direct AI assistant assisting {current_user}, the Founder & CEO. Deliver clear, concise, accurate, and direct responses matching standard ChatGPT/Gemini behavior. Never hallucinate random corporate scenarios, investor briefing templates, or fictional meeting contexts (e.g. Sequoia Capital, ACV, 2-minute timers) unless explicitly provided in the user prompt or relevant context.
+    system_prompt = f"""You are FounderMind, an AI Chief of Staff and Founder Operating System. Deliver direct, highly practical, and clear responses like ChatGPT/Gemini. Match response length to query scope. Never invent or hallucinate unrequested background context (such as investor metrics or meeting timers) unless explicitly mentioned in the user prompt or stored context.
 
 You have TWO sources of memory:
 1. LONG-TERM MEMORIES (from past sessions):
@@ -585,6 +585,7 @@ def chat():
         "rationale": f"Routed to {result.get('model_alias','')}: {'Fast model -- operational' if result.get('is_fast_model') else 'Heavy model -- complex analysis'}",
         "memory_recalled": memory_recalled,
         "recalled_count": recalled_count,
+        "memory_content": long_term,
     }
 
     return jsonify({"response": reply, "memory_saved": should_save, "memory_recalled": memory_recalled, "recalled_count": recalled_count, "tokens": result["tokens"], "cost_usd": result["cost_usd"], "cost_saved_usd": result.get("cost_saved_usd", 0.0), "latency_ms": result["latency_ms"], "model_used": result["model_used"], "model_alias": result.get("model_alias",""), "is_fast_model": result.get("is_fast_model", False), "cascaded": result["cascaded"], "telemetry": telemetry, "session_id": chat_session_id})
@@ -1028,6 +1029,66 @@ def get_settings():
     })
 
 
+@app.route("/api/insights/generate", methods=["GET"])
+@login_required
+def generate_insights():
+    insights = []
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        
+        # 1. Check open high-priority tasks
+        c.execute("SELECT COUNT(*) FROM tasks WHERE done = 0 AND priority = 'high'")
+        high_tasks_count = c.fetchone()[0]
+        if high_tasks_count > 0:
+            insights.append({
+                "text": f"You have {high_tasks_count} high-priority tasks pending. Let's tackle them.",
+                "action_type": "view_tasks",
+                "action_label": "Resolve Now"
+            })
+            
+        # 2. Check meeting overlaps
+        c.execute("""
+            SELECT date, time, COUNT(*) as cnt 
+            FROM meetings 
+            WHERE date != '' AND time != '' 
+            GROUP BY date, time 
+            HAVING cnt > 1
+        """)
+        overlap = c.fetchone()
+        if overlap:
+            insights.append({
+                "text": f"Schedule conflict detected: Multiple meetings scheduled on {overlap['date']} at {overlap['time']}.",
+                "action_type": "view_meetings",
+                "action_label": "Resolve Conflict"
+            })
+            
+        # 3. Check decisions logged
+        c.execute("SELECT COUNT(*) FROM memories WHERE tag = 'decision'")
+        decisions_count = c.fetchone()[0]
+        if decisions_count == 0:
+            insights.append({
+                "text": "No pricing or strategy decisions logged this week yet.",
+                "action_type": "log_decision",
+                "action_label": "Log Decision"
+            })
+
+        # Add fallback insights if less than 2
+        if len(insights) < 2 and high_tasks_count == 0:
+            insights.append({
+                "text": "Founder Operating System running smoothly. All priorities are clear.",
+                "action_type": "chat_briefing",
+                "action_label": "Ask FounderMind"
+            })
+        if len(insights) < 2:
+            insights.append({
+                "text": "Keep your system updated by scheduling upcoming meetings.",
+                "action_type": "view_meetings",
+                "action_label": "View Calendar"
+            })
+
+    return jsonify(insights[:2])
+
+
 @app.route("/health", methods=["GET"])
 def health():
     with get_db_connection() as conn:
@@ -1037,6 +1098,128 @@ def health():
         docs_count = c.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         mems_count = c.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
     return jsonify({"status": "ok", "models": {"low_cost": "groq/llama-3.1-8b-instant", "high_capacity": "groq/llama-3.3-70b-versatile"}, "groq": "connected" if GROQ_API_KEY else "missing-key", "hindsight_sdk": "connected" if HINDSIGHT_API_KEY else "missing-key", "cascadeflow": "connected" if GROQ_API_KEY else "missing-key", "database": "sqlite3", "session_messages": len(conversation_history), "tasks": tasks_count, "meetings": meetings_count, "documents": docs_count, "memories": mems_count})
+
+# ══════════════════════════════════════════════════════════
+# EXECUTIVE STATE ENDPOINTS (Pass 3 & 4)
+# ══════════════════════════════════════════════════════════
+
+@app.route("/api/priorities", methods=["GET"])
+@login_required
+def get_api_priorities():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, text, priority, done, created_at FROM tasks WHERE done = 0 ORDER BY created_at DESC")
+        tasks = [{"id": r["id"], "text": r["text"], "priority": r["priority"], "done": bool(r["done"]), "created_at": r["created_at"]} for r in c.fetchall()]
+    return jsonify(tasks)
+
+@app.route("/api/priorities", methods=["POST"])
+@login_required
+def post_api_priorities():
+    data = get_json_body()
+    text = (data.get("text") or "").strip()
+    if not text: return jsonify({"error": "Text required"}), 400
+    task_id = str(uuid.uuid4())
+    priority = data.get("priority", "med")
+    created_at = now_iso()
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO tasks (id, text, priority, done, created_at) VALUES (?, ?, ?, 0, ?)", (task_id, text, priority, created_at))
+        conn.commit()
+    return jsonify({"id": task_id, "text": text, "priority": priority, "done": False, "created_at": created_at}), 201
+
+@app.route("/api/schedule", methods=["GET"])
+@login_required
+def get_api_schedule():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, title, date, time, with_, created_at FROM meetings ORDER BY created_at DESC LIMIT 5")
+        meetings = [dict(r) for r in c.fetchall()]
+    return jsonify(meetings)
+
+@app.route("/api/schedule", methods=["POST"])
+@login_required
+def post_api_schedule():
+    data = get_json_body()
+    title = (data.get("title") or "").strip()
+    if not title: return jsonify({"error": "Title required"}), 400
+    meeting_id = str(uuid.uuid4())
+    date = data.get("date", "")
+    time_val = data.get("time", "")
+    with_ = data.get("with_", "")
+    created_at = now_iso()
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO meetings (id, title, date, time, with_, created_at) VALUES (?, ?, ?, ?, ?, ?)", (meeting_id, title, date, time_val, with_, created_at))
+        conn.commit()
+    return jsonify({"id": meeting_id, "title": title, "date": date, "time": time_val, "with_": with_, "created_at": created_at}), 201
+
+@app.route("/api/decisions", methods=["GET"])
+@login_required
+def get_api_decisions():
+    user_id = session["user_id"]
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, text, tag, saved_at FROM memories WHERE user_id = ? AND tag = 'decision' ORDER BY saved_at DESC LIMIT 5", (user_id,))
+        mems = [dict(r) for r in c.fetchall()]
+    return jsonify(mems)
+
+@app.route("/api/decisions", methods=["POST"])
+@login_required
+def post_api_decisions():
+    data = get_json_body()
+    text = (data.get("text") or "").strip()
+    if not text: return jsonify({"error": "Text required"}), 400
+    user_id = session["user_id"]
+    mem_id = str(uuid.uuid4())
+    saved_at = now_str()
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO memories (id, text, tag, saved_at, user_id) VALUES (?, ?, 'decision', ?, ?)", (mem_id, text, saved_at, user_id))
+        conn.commit()
+    save_memory_hindsight(f"[{saved_at}] DECISION:\n{text}")
+    return jsonify({"id": mem_id, "text": text, "tag": "decision", "saved_at": saved_at}), 201
+
+@app.route("/api/insights", methods=["GET"])
+@login_required
+def get_api_insights():
+    return jsonify([
+        {"type": "observation", "text": "You've been focused on fundraising tasks this week."},
+        {"type": "suggestion", "text": "Consider preparing a pitch deck update for the upcoming investor sync."}
+    ])
+
+
+@app.route("/api/model", methods=["GET"])
+@login_required
+def get_api_model():
+    return jsonify({"model": "llama-3.3-70b-versatile", "provider": "Groq", "alias": "Groq Llama 3.3"})
+
+@app.route("/api/reset", methods=["POST"])
+@login_required
+def api_reset():
+    user_id = session["user_id"]
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM tasks")
+        conn.execute("DELETE FROM meetings")
+        conn.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM chat_messages WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM chat_sessions WHERE user_id = ?", (user_id,))
+        conn.commit()
+    global conversation_history
+    conversation_history = []
+    session.pop("chat_session_id", None)
+    return jsonify({"status": "reset complete"})
+
+@app.route("/api/user", methods=["PUT"])
+@login_required
+def update_api_user():
+    data = get_json_body()
+    username = (data.get("username") or "").strip()
+    if username:
+        user_id = session["user_id"]
+        with get_db_connection() as conn:
+            conn.execute("UPDATE users SET username = ? WHERE id = ?", (username, user_id))
+            conn.commit()
+        session["username"] = username
+        session.modified = True
+        return jsonify({"status": "updated", "username": username})
+    return jsonify({"error": "Username required"}), 400
 
 
 if __name__ == "__main__":

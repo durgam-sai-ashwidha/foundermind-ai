@@ -308,6 +308,16 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
 .model-tag-70b{background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);}
 .audit-meta-group{display:flex;align-items:center;gap:10px;font-size:0.7rem;font-family:monospace;color:var(--muted);}
 .audit-rationale-text{font-size:0.78rem;color:var(--text);line-height:1.4;}
+
+/* EXECUTIVE OVERVIEW DASHBOARD LAYOUT & WIDGETS */
+.overview-dashboard-container{display:grid;grid-template-columns:1fr 350px;gap:20px;align-items:start;}
+@media (max-width:1024px){.overview-dashboard-container{grid-template-columns:1fr;}}
+.quick-matrix-tile:hover{transform:translateY(-2px);border-color:rgba(245,200,66,0.4) !important;box-shadow:0 4px 14px rgba(245,200,66,0.15);}
+.quick-prompt-bar:hover{border-color:rgba(245,200,66,0.6) !important;box-shadow:0 6px 20px rgba(245,200,66,0.2) !important;}
+.quick-prompt-bar:hover .prompt-bar-arrow{transform:translateX(3px);}
+.prompt-bar-arrow{transition:transform 0.2s ease;}
+.proactive-card:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.2);}
+
 </style>
 </head>
 <body>
@@ -406,51 +416,179 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
     <div class="page active" id="page-overview">
       <div class="page-title">Good <span id="overview-time-greeting">morning</span>, <span id="overview-user-name">Founder</span> 👋</div>
       <div class="page-subtitle" style="color:var(--muted);font-size:0.82rem;margin-bottom:20px;margin-top:-8px;">Here is what needs your attention today.</div>
-      <div class="overview-grid-top">
-        <div class="card">
-          <div class="card-title">🔴 Today's Priorities <button class="card-action" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">View All</button></div>
-          <div id="ovPriorities">
-            <div class="empty-state"><div class="empty-icon">🎯</div>No priorities yet.<br><small>Add tasks to see them here.</small></div>
+
+      <!-- MAIN 2-COLUMN DASHBOARD LAYOUT -->
+      <div class="overview-dashboard-container">
+        
+        <!-- LEFT MAIN COLUMN -->
+        <div class="overview-main-col" style="display:flex; flex-direction:column; gap:16px;">
+          
+          <!-- TODAY'S PRIORITIES & SCHEDULE (TOP GRID) -->
+          <div class="overview-grid-top">
+            <div class="card">
+              <div class="card-title">🔴 Today's Priorities <button class="card-action" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">View All</button></div>
+              <div id="ovPriorities">
+                <div class="empty-state"><div class="empty-icon">🎯</div>No priorities yet.<br><small>Add tasks to see them here.</small></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">📅 Today's Schedule <button class="card-action" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))">View Calendar</button></div>
+              <div id="ovMeetings">
+                <div class="empty-state"><div class="empty-icon">📅</div>No meetings scheduled.<br><small>Add a meeting to get started.</small></div>
+              </div>
+            </div>
           </div>
+
+          <!-- QUICK ACTIONS MATRIX (MIDDLE CENTER) -->
+          <div class="card quick-actions-matrix-card">
+            <div class="card-title" style="margin-bottom:12px;">⚡ Quick Actions</div>
+            <div class="quick-matrix-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:14px;">
+              <button class="quick-matrix-tile" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
+                <div style="font-size:1.4rem; margin-bottom:6px; color:var(--gold2);">➕</div>
+                <div style="font-size:0.78rem; font-weight:600;">New Task</div>
+              </button>
+              <button class="quick-matrix-tile" onclick="goToChat('Log a decision: ')" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
+                <div style="font-size:1.4rem; margin-bottom:6px;">🧠</div>
+                <div style="font-size:0.78rem; font-weight:600;">Record Decision</div>
+              </button>
+              <button class="quick-matrix-tile" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
+                <div style="font-size:1.4rem; margin-bottom:6px;">📅</div>
+                <div style="font-size:0.78rem; font-weight:600;">Add Meeting</div>
+              </button>
+              <button class="quick-matrix-tile" onclick="showPage('documents',document.querySelector('[onclick*=documents]'))" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 10px; color:var(--text); cursor:pointer; text-align:center; transition:all 0.2s ease; font-family:inherit;">
+                <div style="font-size:1.4rem; margin-bottom:6px;">📤</div>
+                <div style="font-size:0.78rem; font-weight:600;">Upload Document</div>
+              </button>
+            </div>
+
+            <!-- Full-width Prompt Bar Underneath -->
+            <div class="quick-prompt-bar" onclick="goToChat('Get answers from your company brain')" style="background:rgba(15,23,42,0.8); border:1px solid rgba(245,200,66,0.3); border-radius:14px; padding:12px 18px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.25s ease; box-shadow:0 4px 16px rgba(0,0,0,0.25);">
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <span style="font-weight:600; font-size:0.88rem; color:#fff; display:flex; align-items:center; gap:6px;">Ask FounderMind anything <span style="font-size:0.75rem; color:var(--gold2);">✨</span></span>
+                <span style="font-size:0.75rem; color:var(--muted);">Get answers from your company brain</span>
+              </div>
+              <div class="prompt-bar-arrow" style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#f5c842,#d9a01c); color:#000; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:1rem; box-shadow:0 2px 8px rgba(245,200,66,0.4);">
+                &rarr;
+              </div>
+            </div>
+          </div>
+
+          <!-- RECENT DECISIONS JOURNAL -->
+          <div class="card" style="display:flex; flex-direction:column; gap:10px;">
+            <div class="card-title">🧠 Recent Decisions <button class="card-action" onclick="goToChat('Show me decisions we have logged')">Ask AI</button></div>
+            <div class="decision-search-box" style="display:flex; gap:8px; margin-bottom:4px;">
+              <input type="text" id="decisionSearchInput" placeholder="Search decisions..." oninput="updateOverviewChats()" style="flex:1; padding:6px 10px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:0.75rem;">
+            </div>
+            <div class="decision-filters" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+              <button class="filter-btn active" id="btn-dec-all" onclick="filterDecisionsTag('all')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--glow); color:var(--text); cursor:pointer; font-family:inherit;">All</button>
+              <button class="filter-btn" id="btn-dec-product" onclick="filterDecisionsTag('product')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Product</button>
+              <button class="filter-btn" id="btn-dec-technical" onclick="filterDecisionsTag('technical')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Technical</button>
+              <button class="filter-btn" id="btn-dec-financial" onclick="filterDecisionsTag('financial')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Financial</button>
+            </div>
+            <div id="ovChats">
+              <div class="empty-state"><div class="empty-icon">💬</div>No decisions logged yet.<br><small>Log key decisions during your chats.</small></div>
+            </div>
+          </div>
+
         </div>
-        <div class="card">
-          <div class="card-title">📅 Today's Schedule <button class="card-action" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))">View Calendar</button></div>
-          <div id="ovMeetings">
-            <div class="empty-state"><div class="empty-icon">📅</div>No meetings scheduled.<br><small>Add a meeting to get started.</small></div>
+
+        <!-- RIGHT SIDEBAR COLUMN -->
+        <div class="overview-sidebar-col" style="display:flex; flex-direction:column; gap:16px;">
+          
+          <!-- "FounderMind Noticed" PROACTIVE PANEL (TOP RIGHT) -->
+          <div class="card proactive-panel" style="border-left:3px solid var(--gold2); background:linear-gradient(135deg,var(--card),rgba(180,130,50,0.04));">
+            <div class="card-title" style="display:flex; align-items:center; justify-content:space-between;">
+              <span>FounderMind noticed ✨</span>
+              <span class="badge-live" style="font-size:0.65rem; padding:2px 7px; border-radius:10px; background:rgba(245,200,66,0.15); color:var(--gold2); border:1px solid rgba(245,200,66,0.3); font-weight:600;">LIVE</span>
+            </div>
+            
+            <div class="proactive-cards-list" style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+              <!-- Card 1 (Yellow warning) -->
+              <div class="proactive-card warning-card" style="padding:12px; border-radius:10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-left:3px solid #f59e0b; transition:all 0.2s ease;">
+                <div style="font-weight:600; font-size:0.83rem; color:#f59e0b; margin-bottom:3px;">Your MVP launch is in 5 days</div>
+                <div style="font-size:0.78rem; color:var(--muted); margin-bottom:8px;">3 launch-related tasks are still incomplete.</div>
+                <a href="javascript:void(0)" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))" style="font-size:0.75rem; font-weight:600; color:#f59e0b; text-decoration:none; display:inline-flex; align-items:center; gap:4px;">View launch plan &rarr;</a>
+              </div>
+
+              <!-- Card 2 (Purple blocker) -->
+              <div class="proactive-card blocker-card" style="padding:12px; border-radius:10px; background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.25); border-left:3px solid #a855f7; transition:all 0.2s ease;">
+                <div style="font-weight:600; font-size:0.83rem; color:#c084fc; margin-bottom:3px;">Marketing is blocked</div>
+                <div style="font-size:0.78rem; color:var(--muted); margin-bottom:8px;">Waiting for product screenshots from Sirish (Engineering).</div>
+                <a href="javascript:void(0)" onclick="goToChat('Show dependency details for Marketing screenshots from Sirish')" style="font-size:0.75rem; font-weight:600; color:#c084fc; text-decoration:none; display:inline-flex; align-items:center; gap:4px;">View dependency &rarr;</a>
+              </div>
+
+              <!-- Card 3 (Blue alert) -->
+              <div class="proactive-card alert-card" style="padding:12px; border-radius:10px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-left:3px solid #3b82f6; transition:all 0.2s ease;">
+                <div style="font-weight:600; font-size:0.83rem; color:#60a5fa; margin-bottom:3px;">Stale Tasks Alert</div>
+                <div style="font-size:0.78rem; color:var(--muted); margin-bottom:8px;">2 tasks haven't been updated for more than 5 days.</div>
+                <a href="javascript:void(0)" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))" style="font-size:0.75rem; font-weight:600; color:#60a5fa; text-decoration:none; display:inline-flex; align-items:center; gap:4px;">Review tasks &rarr;</a>
+              </div>
+            </div>
+
+            <!-- Dynamic Backend Insights -->
+            <div id="ovInsight" style="margin-top:10px;"></div>
           </div>
+
+          <!-- TEAM OVERVIEW PANEL (BOTTOM RIGHT) -->
+          <div class="card team-overview-card">
+            <div class="card-title" style="display:flex; align-items:center; justify-content:space-between;">
+              <span>👥 Team Overview</span>
+              <button class="card-action" onclick="goToChat('Show team workload and task status')">View all &rarr;</button>
+            </div>
+            
+            <div class="team-list" style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
+              <!-- Sirish -->
+              <div class="team-member-item" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:rgba(15,23,42,0.5); border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem; box-shadow:0 2px 6px rgba(99,102,241,0.3);">S</div>
+                  <div>
+                    <div style="font-weight:600; font-size:0.82rem; color:var(--text);">Sirish</div>
+                    <div style="font-size:0.72rem; color:var(--muted);">Backend Developer</div>
+                  </div>
+                </div>
+                <span class="status-pill on-track" style="padding:3px 9px; border-radius:12px; font-size:0.7rem; font-weight:600; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);">On track</span>
+              </div>
+
+              <!-- Ananya -->
+              <div class="team-member-item" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:rgba(15,23,42,0.5); border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem; box-shadow:0 2px 6px rgba(245,158,11,0.3);">A</div>
+                  <div>
+                    <div style="font-weight:600; font-size:0.82rem; color:var(--text);">Ananya</div>
+                    <div style="font-size:0.72rem; color:var(--muted);">Marketing Lead</div>
+                  </div>
+                </div>
+                <span class="status-pill blocked" style="padding:3px 9px; border-radius:12px; font-size:0.7rem; font-weight:600; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3);">Blocked</span>
+              </div>
+
+              <!-- Rahul -->
+              <div class="team-member-item" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:rgba(15,23,42,0.5); border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#7e22ce); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem; box-shadow:0 2px 6px rgba(168,85,247,0.3);">R</div>
+                  <div>
+                    <div style="font-weight:600; font-size:0.82rem; color:var(--text);">Rahul</div>
+                    <div style="font-size:0.72rem; color:var(--muted);">Frontend Developer</div>
+                  </div>
+                </div>
+                <span class="status-pill on-track" style="padding:3px 9px; border-radius:12px; font-size:0.7rem; font-weight:600; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);">On track</span>
+              </div>
+
+              <!-- Priya -->
+              <div class="team-member-item" style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:rgba(15,23,42,0.5); border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#10b981,#047857); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.8rem; box-shadow:0 2px 6px rgba(16,185,129,0.3);">P</div>
+                  <div>
+                    <div style="font-weight:600; font-size:0.82rem; color:var(--text);">Priya</div>
+                    <div style="font-size:0.72rem; color:var(--muted);">Operations</div>
+                  </div>
+                </div>
+                <span class="status-pill on-track" style="padding:3px 9px; border-radius:12px; font-size:0.7rem; font-weight:600; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);">On track</span>
+              </div>
+            </div>
+          </div>
+
         </div>
-      </div>
-      <div class="card" style="margin-bottom:14px;border-left:3px solid var(--gold2);background:linear-gradient(135deg,var(--card),rgba(180,130,50,0.04));">
-        <div class="card-title">🧠 FounderMind Noticed</div>
-        <div id="ovInsight" style="font-size:0.85rem;color:var(--text);line-height:1.6;">
-          <span style="color:var(--muted);font-style:italic;">No proactive insights yet. Start chatting to surface key patterns.</span>
-        </div>
-      </div>
-      <div class="overview-grid-bottom">
-        <div class="card" style="display:flex; flex-direction:column; gap:10px;">
-          <div class="card-title">🧠 Recent Decisions <button class="card-action" onclick="goToChat('Show me decisions we have logged')">Ask AI</button></div>
-          <div class="decision-search-box" style="display:flex; gap:8px; margin-bottom:4px;">
-            <input type="text" id="decisionSearchInput" placeholder="Search decisions..." oninput="updateOverviewChats()" style="flex:1; padding:6px 10px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:0.75rem;">
-          </div>
-          <div class="decision-filters" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
-            <button class="filter-btn active" id="btn-dec-all" onclick="filterDecisionsTag('all')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--glow); color:var(--text); cursor:pointer; font-family:inherit;">All</button>
-            <button class="filter-btn" id="btn-dec-product" onclick="filterDecisionsTag('product')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Product</button>
-            <button class="filter-btn" id="btn-dec-technical" onclick="filterDecisionsTag('technical')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Technical</button>
-            <button class="filter-btn" id="btn-dec-financial" onclick="filterDecisionsTag('financial')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Financial</button>
-          </div>
-          <div id="ovChats">
-            <div class="empty-state"><div class="empty-icon">💬</div>No decisions logged yet.<br><small>Log key decisions during your chats.</small></div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">⚡ Quick Actions</div>
-          <div class="quick-actions-row">
-            <button class="quick-action-btn" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">✅ New Task</button>
-            <button class="quick-action-btn" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))">📅 Schedule Meeting</button>
-            <button class="quick-action-btn" onclick="goToChat('Log a decision:')">🧠 Log Decision</button>
-            <button class="quick-action-btn" onclick="goToChat(\"What's important today?\")">💬 Ask FounderMind</button>
-          </div>
-        </div>
+
       </div>
     </div>
 

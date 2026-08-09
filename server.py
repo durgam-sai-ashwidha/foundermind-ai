@@ -439,7 +439,7 @@ def login():
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, email, password_hash FROM users WHERE username = ? OR email = ?",
+            "SELECT id, username, email, password_hash FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)",
             (identifier, identifier)
         )
         user = cursor.fetchone()
@@ -535,19 +535,6 @@ def chat():
         session.modified = True
 
     chat_session_id = session.get("chat_session_id")
-    if not chat_session_id:
-        # Fallback to user's most recent session if available
-        try:
-            with get_db_connection() as conn:
-                c = conn.cursor()
-                c.execute("SELECT id FROM chat_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,))
-                row = c.fetchone()
-                if row:
-                    chat_session_id = row["id"]
-                    session["chat_session_id"] = chat_session_id
-                    session.modified = True
-        except Exception as e:
-            print(f"[DB Session Fallback Lookup Error]: {e}")
 
     if not chat_session_id:
         chat_session_id = str(uuid.uuid4())

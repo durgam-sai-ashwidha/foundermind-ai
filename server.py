@@ -458,79 +458,7 @@ def logout():
     return jsonify({"status": "logged_out", "authenticated": False})
 
 
-# ─── Forgot / Reset Password ──────────────────────────────────────────────────
-_reset_codes: dict = {}
-_RESET_CODE_TTL = 900  # 15 minutes
 
-
-@app.route("/api/auth/forgot-password", methods=["POST"])
-def forgot_password():
-    import time as _time
-    data = get_json_body()
-    identifier = (data.get("email") or data.get("username") or "").strip().lower()
-
-    if not identifier:
-        return jsonify({"status": "error", "message": "Email or username is required"}), 400
-
-    # Check user in database
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, username, email FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?",
-            (identifier, identifier)
-        )
-        user = cursor.fetchone()
-
-    if not user:
-        # Fallback for demo mode if table empty or user not registered yet
-        user_email = identifier
-        user_name = identifier
-    else:
-        user_email = user["email"].lower()
-        user_name = user["username"]
-
-    reset_code = "123456"
-    _reset_codes[identifier] = {"code": reset_code, "expires": _time.time() + _RESET_CODE_TTL}
-    if user_email:
-        _reset_codes[user_email] = {"code": reset_code, "expires": _time.time() + _RESET_CODE_TTL}
-
-    print(f"[RESET CODE GENERATED] Identifier: {identifier} | Code: {reset_code}")
-    log_audit(f"Password reset requested -- {user_name}")
-
-    return jsonify({
-        "status": "success",
-        "message": f"Reset code generated! (Demo code: {reset_code})",
-        "resetCode": reset_code
-    })
-
-
-@app.route("/api/auth/reset-password", methods=["POST"])
-def reset_password():
-    data = get_json_body()
-    identifier   = (data.get("email") or data.get("username") or "").strip().lower()
-    new_password = (data.get("newPassword") or "").strip()
-    reset_code   = (data.get("resetCode") or "").strip()
-
-    if not identifier or not new_password:
-        return jsonify({"status": "error", "message": "Email/Username and new password are required"}), 400
-
-    if len(new_password) < 4:
-        return jsonify({"status": "error", "message": "New password must be at least 4 characters"}), 400
-
-    # Update password in DB
-    new_hash = hash_password(new_password)
-    with get_db_connection() as conn:
-        conn.execute(
-            "UPDATE users SET password_hash = ? WHERE LOWER(email) = ? OR LOWER(username) = ?",
-            (new_hash, identifier, identifier)
-        )
-        conn.commit()
-
-    _reset_codes.pop(identifier, None)
-    log_audit(f"Password reset completed -- {identifier}")
-
-    return jsonify({"status": "success", "message": "Password updated successfully! You can now log in."})
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 @app.route("/api/me", methods=["GET"])
@@ -544,6 +472,30 @@ def get_current_user():
     return jsonify({"authenticated": False})
 
 
+@app.route("/auto-login")
+def auto_login():
+    """One-click bypass login — visit /auto-login to get straight into the dashboard."""
+    username, email, password = "founder", "founder@startup.com", "founder123"
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username FROM users WHERE username = ? OR email = ?", (username, email))
+        user = cursor.fetchone()
+        if not user:
+            pw_hash = hash_password(password)
+            cursor.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)", (username, email, pw_hash))
+            conn.commit()
+            user_id = cursor.lastrowid
+        else:
+            user_id = user["id"]
+            username = user["username"]
+    session["user_id"] = user_id
+    session["username"] = username
+    session.modified = True
+    log_audit(f"Auto-login bypass -- {username}")
+    from flask import redirect
+    return redirect("/")
+
+
 @app.route("/")
 def index():
     if os.path.exists(os.path.join(BASE_DIR, FRONTEND_FILENAME)):
@@ -551,6 +503,7 @@ def index():
     elif os.path.exists(os.path.join(BASE_DIR, "index.html")):
         return send_from_directory(BASE_DIR, "index.html")
     return "FounderMind backend running."
+
 
 
 @app.route("/chat", methods=["POST"])

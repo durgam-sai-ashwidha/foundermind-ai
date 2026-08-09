@@ -288,21 +288,7 @@ body.light .welcome-title{
 .fm-toast.error{background:linear-gradient(135deg,rgba(239,68,68,0.95),rgba(185,28,28,0.95));border:1px solid rgba(252,165,165,0.4);}
 .fm-toast.info{background:linear-gradient(135deg,rgba(99,102,241,0.95),rgba(67,56,202,0.95));border:1px solid rgba(165,180,252,0.4);}
 .fm-toast-icon{font-size:1rem;flex-shrink:0;}
-/* FORGOT PASSWORD OVERLAY */
-#fmForgotOverlay{position:fixed;inset:0;background:rgba(5,5,12,0.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);z-index:999998;display:none;align-items:center;justify-content:center;}
-#fmForgotOverlay.visible{display:flex;}
-.fm-forgot-card{background:rgba(18,20,35,0.97);border:1px solid rgba(255,255,255,0.1);box-shadow:0 24px 60px rgba(0,0,0,0.7);border-radius:18px;width:100%;max-width:400px;padding:36px 32px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;position:relative;}
-.fm-forgot-back{position:absolute;top:14px;left:18px;background:none;border:none;color:#94a3b8;font-size:0.82rem;cursor:pointer;padding:4px 8px;border-radius:6px;transition:color 0.2s;display:flex;align-items:center;gap:5px;}
-.fm-forgot-back:hover{color:#f5c842;}
-.fm-forgot-step{display:none;}
-.fm-forgot-step.active{display:block;}
-.fm-forgot-input{width:100%;box-sizing:border-box;padding:11px 14px;background:rgba(15,23,42,0.85);border:1px solid rgba(255,255,255,0.12);border-radius:9px;color:#fff;font-size:13px;outline:none;margin-bottom:14px;transition:border-color 0.2s;}
-.fm-forgot-input:focus{border-color:#a78bfa;}
-.fm-forgot-label{display:block;font-size:12px;font-weight:600;color:#cbd5e1;margin-bottom:6px;}
-.fm-forgot-btn{width:100%;padding:12px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(99,102,241,0.4);transition:opacity 0.2s,transform 0.15s;margin-top:4px;}
-.fm-forgot-btn:hover{opacity:0.9;transform:translateY(-1px);}
-.fm-forgot-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
-.fm-forgot-err{display:none;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#fca5a5;padding:9px 13px;border-radius:8px;font-size:12px;margin-bottom:14px;text-align:center;}
+
 .msg-telemetry-badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
 .telemetry-badge{font-size:0.72rem;font-weight:600;border-radius:8px;padding:3px 10px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,0.15);transition:all 0.2s ease;cursor:default;user-select:none;}
 .telemetry-badge:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.22);}
@@ -1591,9 +1577,6 @@ renderMeetings();
       <div style="margin-bottom:14px;">
         <label style="display: block; font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">Password</label>
         <input type="password" id="authPassword" required style="width: 100%; box-sizing: border-box; padding: 10px 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff; font-size: 13px; outline: none;" placeholder="••••••••">
-        <div id="forgotPasswordLink" style="text-align:right;margin-top:6px;">
-          <button type="button" onclick="showForgotPassword()" style="background:none;border:none;color:#a78bfa;font-size:11.5px;cursor:pointer;font-weight:600;padding:0;text-decoration:underline;text-underline-offset:2px;transition:color 0.2s;" onmouseover="this.style.color='#c4b5fd'" onmouseout="this.style.color='#a78bfa'">Forgot Password?</button>
-        </div>
       </div>
 
       <button type="submit" id="authSubmitBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); transition: transform 0.1s; margin-bottom: 12px;">Sign In</button>
@@ -1606,53 +1589,6 @@ renderMeetings();
 <!-- TOAST CONTAINER -->
 <div id="fmToastContainer" class="fm-toast-container"></div>
 
-<!-- FORGOT PASSWORD OVERLAY -->
-<div id="fmForgotOverlay">
-  <div class="fm-forgot-card">
-    <button class="fm-forgot-back" onclick="closeForgotPassword()">&#8592; Back to Login</button>
-
-    <!-- STEP 1: Enter Email -->
-    <div id="fmForgotStep1" class="fm-forgot-step active">
-      <div style="text-align:center;margin-bottom:22px;margin-top:8px;">
-        <div style="font-size:32px;margin-bottom:8px;">🔐</div>
-        <h3 style="margin:0 0 6px;font-size:18px;font-weight:700;background:linear-gradient(135deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Forgot Password?</h3>
-        <p style="color:#94a3b8;font-size:12.5px;margin:0;">Enter your account email and we&rsquo;ll generate a 6-digit reset code.</p>
-      </div>
-      <div id="fmForgotErr1" class="fm-forgot-err"></div>
-      <label class="fm-forgot-label">Email Address</label>
-      <input type="email" id="fmForgotEmail" class="fm-forgot-input" placeholder="founder@startup.com">
-      <button class="fm-forgot-btn" id="fmForgotBtn1" onclick="handleForgotSubmit()">Send Reset Code</button>
-    </div>
-
-    <!-- STEP 2: Enter Code + New Password -->
-    <div id="fmForgotStep2" class="fm-forgot-step">
-      <div style="text-align:center;margin-bottom:22px;margin-top:8px;">
-        <div style="font-size:32px;margin-bottom:8px;">🔑</div>
-        <h3 style="margin:0 0 6px;font-size:18px;font-weight:700;background:linear-gradient(135deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Enter Reset Code</h3>
-        <p id="fmForgotSubtitle2" style="color:#94a3b8;font-size:12.5px;margin:0;">Check your server console for the 6-digit code.</p>
-      </div>
-      <div id="fmForgotErr2" class="fm-forgot-err"></div>
-      <label class="fm-forgot-label">6-Digit Reset Code</label>
-      <input type="text" id="fmResetCode" class="fm-forgot-input" placeholder="e.g. 482910" maxlength="6" inputmode="numeric" style="letter-spacing:0.25em;font-size:18px;text-align:center;">
-      <label class="fm-forgot-label">New Password</label>
-      <input type="password" id="fmNewPassword" class="fm-forgot-input" placeholder="Min. 4 characters">
-      <label class="fm-forgot-label">Confirm New Password</label>
-      <input type="password" id="fmConfirmPassword" class="fm-forgot-input" placeholder="Re-enter new password">
-      <button class="fm-forgot-btn" id="fmForgotBtn2" onclick="handleResetSubmit()">Reset Password</button>
-    </div>
-
-    <!-- STEP 3: Success -->
-    <div id="fmForgotStep3" class="fm-forgot-step">
-      <div style="text-align:center;padding:16px 0 8px;">
-        <div style="font-size:48px;margin-bottom:12px;">✅</div>
-        <h3 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#34d399;">Password Updated!</h3>
-        <p style="color:#94a3b8;font-size:13px;margin:0 0 24px;">Your password has been reset. Sign in with your new password.</p>
-        <button class="fm-forgot-btn" onclick="closeForgotPassword()" style="background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 14px rgba(16,185,129,0.4);">Back to Sign In</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
 let currentAuthMode = 'login';
 
@@ -1663,22 +1599,6 @@ function switchAuthTab(mode) {
   const emailGroup = document.getElementById('emailGroup');
   const submitBtn = document.getElementById('authSubmitBtn');
   const errBox = document.getElementById('authErrorMsg');
-  const forgotLink = document.getElementById('forgotPasswordLink');
-  errBox.style.display = 'none';
-  if (mode === 'login') {
-    loginTab.style.background = '#6366f1'; loginTab.style.color = '#fff';
-    registerTab.style.background = 'transparent'; registerTab.style.color = '#94a3b8';
-    emailGroup.style.display = 'none';
-    submitBtn.textContent = 'Sign In';
-    if(forgotLink) forgotLink.style.display = 'block';
-  } else {
-    registerTab.style.background = '#6366f1'; registerTab.style.color = '#fff';
-    loginTab.style.background = 'transparent'; loginTab.style.color = '#94a3b8';
-    emailGroup.style.display = 'block';
-    submitBtn.textContent = 'Create Account';
-    if(forgotLink) forgotLink.style.display = 'none';
-  }
-}
   const identifierInput = document.getElementById('authIdentifier');
 
   errBox.style.display = 'none';
@@ -1853,119 +1773,7 @@ function updateProfileName(name){
   if(profEl)profEl.textContent=n;
 }
 
-// ===== FORGOT PASSWORD FUNCTIONS =====
-let _forgotEmail = '';
 
-function showForgotPassword(){
-  // Reset all steps
-  ['fmForgotStep1','fmForgotStep2','fmForgotStep3'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el){el.classList.remove('active');}
-  });
-  const step1=document.getElementById('fmForgotStep1');
-  if(step1)step1.classList.add('active');
-  const emailInput=document.getElementById('fmForgotEmail');
-  if(emailInput)emailInput.value='';
-  ['fmForgotErr1','fmForgotErr2'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el){el.style.display='none';el.textContent='';}
-  });
-  const overlay=document.getElementById('fmForgotOverlay');
-  if(overlay)overlay.classList.add('visible');
-}
-
-function closeForgotPassword(){
-  const overlay=document.getElementById('fmForgotOverlay');
-  if(overlay)overlay.classList.remove('visible');
-  _forgotEmail='';
-}
-
-function _switchForgotStep(stepNum){
-  for(let i=1;i<=3;i++){
-    const el=document.getElementById('fmForgotStep'+i);
-    if(el)el.classList.toggle('active',i===stepNum);
-  }
-}
-
-async function handleForgotSubmit(){
-  const emailInput=document.getElementById('fmForgotEmail');
-  const errBox=document.getElementById('fmForgotErr1');
-  const btn=document.getElementById('fmForgotBtn1');
-  const email=(emailInput?emailInput.value:'').trim();
-
-  if(!email){_showForgotErr(errBox,'Please enter your email address.');return;}
-  errBox.style.display='none';
-  btn.disabled=true;btn.textContent='Sending...';
-
-  try{
-    const res=await fetch('/api/auth/forgot-password',{
-      method:'POST',credentials:'include',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email})
-    });
-    const data=await res.json();
-    btn.disabled=false;btn.textContent='Send Reset Code';
-
-    if(data.status==='success'){
-      _forgotEmail=email;
-      const codeVal = data.resetCode || '123456';
-      const codeInput = document.getElementById('fmResetCode');
-      if(codeInput) codeInput.value = codeVal;
-      const sub=document.getElementById('fmForgotSubtitle2');
-      if(sub){
-        sub.innerHTML=`Demo code <strong style="color:#a78bfa;font-size:15px;letter-spacing:0.15em;">${codeVal}</strong> auto-filled below!`;
-      }
-      _switchForgotStep(2);
-      showToast('Reset code generated! (Demo code auto-filled)','info','🔑');
-    }else{
-      _showForgotErr(errBox,data.message||data.error||'Something went wrong. Please try again.');
-    }
-  }catch(e){
-    btn.disabled=false;btn.textContent='Send Reset Code';
-    _showForgotErr(errBox,'Network error. Please check your connection.');
-  }
-}
-
-async function handleResetSubmit(){
-  const errBox=document.getElementById('fmForgotErr2');
-  const btn=document.getElementById('fmForgotBtn2');
-  const code=(document.getElementById('fmResetCode')||{}).value||'';
-  const newPass=(document.getElementById('fmNewPassword')||{}).value||'';
-  const confirmPass=(document.getElementById('fmConfirmPassword')||{}).value||'';
-
-  if(!code.trim()){_showForgotErr(errBox,'Please enter the 6-digit reset code.');return;}
-  if(newPass.length<4){_showForgotErr(errBox,'New password must be at least 4 characters.');return;}
-  if(newPass!==confirmPass){_showForgotErr(errBox,'Passwords do not match. Please try again.');return;}
-
-  errBox.style.display='none';
-  btn.disabled=true;btn.textContent='Resetting...';
-
-  try{
-    const res=await fetch('/api/auth/reset-password',{
-      method:'POST',credentials:'include',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email:_forgotEmail,resetCode:code.trim(),newPassword:newPass})
-    });
-    const data=await res.json();
-    btn.disabled=false;btn.textContent='Reset Password';
-
-    if(data.status==='success'){
-      _switchForgotStep(3);
-      showToast('Password updated successfully!','success','✅');
-    }else{
-      _showForgotErr(errBox,data.error||'Failed to reset password. Please try again.');
-    }
-  }catch(e){
-    btn.disabled=false;btn.textContent='Reset Password';
-    _showForgotErr(errBox,'Network error. Please check your connection.');
-  }
-}
-
-function _showForgotErr(el,msg){
-  if(!el)return;
-  el.textContent=msg;
-  el.style.display='block';
-}
 
 function showToast(message,type='info',icon='ℹ️',duration=4000){
   const container=document.getElementById('fmToastContainer');

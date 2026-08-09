@@ -27,6 +27,7 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_FILENAME = "index.html"
 DB_PATH = os.path.join(BASE_DIR, "foundermind.db")
+SERVER_START_TIME = datetime.datetime.now()
 
 app = Flask(__name__, static_folder=None)
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "foundermind_super_secret_key_123")
@@ -1145,14 +1146,40 @@ def generate_insights():
 
 @app.route("/health", methods=["GET"])
 @app.route("/api/health", methods=["GET"])
+@app.route("/api/diagnostics", methods=["GET"])
 def health():
+    uptime_sec = int((datetime.datetime.now() - SERVER_START_TIME).total_seconds())
+    hours, remainder = divmod(uptime_sec, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime_str = f"{hours}h {minutes}m {seconds}s" if hours > 0 else f"{minutes}m {seconds}s"
+
     with get_db_connection() as conn:
         c = conn.cursor()
         tasks_count = c.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
         meetings_count = c.execute("SELECT COUNT(*) FROM meetings").fetchone()[0]
         docs_count = c.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         mems_count = c.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
-    return jsonify({"status": "ok", "models": {"low_cost": "groq/llama-3.1-8b-instant", "high_capacity": "groq/llama-3.3-70b-versatile"}, "groq": "connected" if GROQ_API_KEY else "missing-key", "hindsight_sdk": "connected" if HINDSIGHT_API_KEY else "missing-key", "cascadeflow": "connected" if GROQ_API_KEY else "missing-key", "database": "sqlite3", "session_messages": len(conversation_history), "tasks": tasks_count, "meetings": meetings_count, "documents": docs_count, "memories": mems_count})
+
+    return jsonify({
+        "status": "ok",
+        "backend": "200 OK (Flask)",
+        "database": "SQLITE_CONNECTED",
+        "groq": "connected" if GROQ_API_KEY else "missing-key",
+        "hindsight_sdk": "connected" if HINDSIGHT_API_KEY else "missing-key",
+        "cascadeflow": "connected" if GROQ_API_KEY else "missing-key",
+        "models": {
+            "low_cost": "groq/llama-3.1-8b-instant",
+            "high_capacity": "groq/llama-3.3-70b-versatile"
+        },
+        "uptime": uptime_str,
+        "uptime_seconds": uptime_sec,
+        "server_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "session_messages": len(conversation_history),
+        "tasks": tasks_count,
+        "meetings": meetings_count,
+        "documents": docs_count,
+        "memories": mems_count
+    })
 
 # ══════════════════════════════════════════════════════════
 # NOTIFICATIONS API

@@ -409,6 +409,10 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
       📥
     </div>
 
+    <div class="header-icon-btn" id="helpModalBtn" style="cursor: pointer; font-size: 1.1rem; padding: 6px; color: var(--text);" title="Help &amp; System Status (?)" onclick="openHelpModal()">
+      ❓
+    </div>
+
     <div class="status-pill"><div class="status-dot"></div>🟢 Online &amp; Remembering</div>
   </div>
 </header>
@@ -2163,7 +2167,85 @@ async function markAllNotificationsRead() {
   }
 }
 
-// Click outside & Escape key listeners
+// ===== HELP & SYSTEM STATUS CENTER =====
+function openHelpModal(defaultTab = 'shortcuts') {
+  const overlay = document.getElementById('helpModalOverlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  switchHelpTab(defaultTab);
+}
+
+function closeHelpModal() {
+  const overlay = document.getElementById('helpModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function handleHelpOverlayClick(e) {
+  if (e.target && e.target.id === 'helpModalOverlay') {
+    closeHelpModal();
+  }
+}
+
+function switchHelpTab(tabName) {
+  const tabs = ['shortcuts', 'tour', 'health'];
+  tabs.forEach(t => {
+    const btn = document.getElementById('helpTabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+    const content = document.getElementById('helpTab' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) {
+      if (t === tabName) {
+        btn.style.border = '1px solid rgba(229,169,60,0.4)';
+        btn.style.background = 'rgba(229,169,60,0.15)';
+        btn.style.color = 'var(--gold2, #DAA520)';
+        btn.style.fontWeight = '700';
+      } else {
+        btn.style.border = '1px solid transparent';
+        btn.style.background = 'transparent';
+        btn.style.color = 'var(--muted, #888)';
+        btn.style.fontWeight = '600';
+      }
+    }
+    if (content) {
+      content.style.display = (t === tabName) ? 'block' : 'none';
+    }
+  });
+
+  if (tabName === 'health') {
+    fetchSystemHealth();
+  }
+}
+
+async function fetchSystemHealth() {
+  try {
+    const res = await fetch('/api/diagnostics');
+    if (!res.ok) return;
+    const data = await res.json();
+    
+    const flaskEl = document.getElementById('healthFlaskStatus');
+    if (flaskEl) flaskEl.textContent = '🟢 200 OK (Flask)';
+    
+    const dbEl = document.getElementById('healthDbStatus');
+    if (dbEl) dbEl.textContent = (data.database === 'SQLITE_CONNECTED' || data.database === 'sqlite3') ? '🟢 SQLITE_CONNECTED' : '🔴 Disconnected';
+    
+    const groqEl = document.getElementById('healthGroqStatus');
+    if (groqEl) groqEl.textContent = data.groq === 'connected' ? '🟢 Active (Groq LLM)' : '🟡 Standby';
+    
+    const cascadeEl = document.getElementById('healthCascadeStatus');
+    if (cascadeEl) cascadeEl.textContent = data.cascadeflow === 'connected' ? '🟢 Active & Optimizing' : '🟡 Standby';
+    
+    const uptimeEl = document.getElementById('healthUptime');
+    if (uptimeEl) uptimeEl.textContent = data.uptime || 'Active';
+    
+    const timeEl = document.getElementById('healthServerTime');
+    if (timeEl) timeEl.textContent = data.server_time || new Date().toLocaleString();
+    
+    const countsEl = document.getElementById('healthDbCounts');
+    if (countsEl) countsEl.textContent = `${data.tasks || 0} Tasks | ${data.meetings || 0} Meetings | ${data.memories || 0} Memories | ${data.documents || 0} Documents`;
+  } catch (err) {
+    console.error('[Health] Diagnostics fetch error:', err);
+  }
+}
+
+// Click outside & Keydown event listeners
 document.addEventListener('click', function(e) {
   const bell = document.getElementById('notifBellBtn');
   if (bell && !bell.contains(e.target)) {
@@ -2172,8 +2254,26 @@ document.addEventListener('click', function(e) {
 });
 
 document.addEventListener('keydown', function(e) {
+  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+  const isInputActive = ['input', 'textarea', 'select'].includes(activeTag) || (document.activeElement && document.activeElement.isContentEditable);
+
   if (e.key === 'Escape') {
+    closeHelpModal();
     closeNotifications();
+    const quickModal = document.getElementById('quickActionModal');
+    if (quickModal) quickModal.style.display = 'none';
+  }
+
+  // ⌘N / Ctrl+N for Quick Action Modal
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'n' || e.key === 'N')) {
+    e.preventDefault();
+    if (typeof openQuickActionModal === 'function') openQuickActionModal('task');
+  }
+
+  // ? key for Help Center (when not typing in an input)
+  if (e.key === '?' && !isInputActive) {
+    e.preventDefault();
+    openHelpModal();
   }
 });
 
@@ -2504,6 +2604,153 @@ function sendQuickPrompt(){
 
   </div>
 </footer>
+
+<!-- HELP & SYSTEM STATUS CENTER MODAL -->
+<div id="helpModalOverlay" class="help-modal-overlay" onclick="handleHelpOverlayClick(event)" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="help-modal-card" onclick="event.stopPropagation()" style="background: rgba(20, 20, 26, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; width: 100%; max-width: 680px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden; display: flex; flex-direction: column; font-family: inherit; color: var(--text, #fff); max-height: 85vh;">
+    
+    <!-- Modal Header -->
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.03);">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 1.3rem;">❓</span>
+        <div>
+          <div style="font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em;">FounderMind AI Help &amp; System Status</div>
+          <div style="font-size: 0.75rem; color: var(--muted, #888); margin-top: 2px;">Interactive Shortcuts, Platform Tour &amp; Real-time Diagnostics</div>
+        </div>
+      </div>
+      <button onclick="closeHelpModal()" style="background: rgba(255,255,255,0.08); border: none; color: #aaa; border-radius: 50%; width: 32px; height: 32px; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.18)';this.style.color='#fff';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.color='#aaa';">✕</button>
+    </div>
+
+    <!-- Modal Navigation Tabs -->
+    <div style="display: flex; gap: 4px; padding: 12px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0,0,0,0.2);">
+      <button id="helpTabBtnShortcuts" onclick="switchHelpTab('shortcuts')" class="help-tab-btn active" style="flex: 1; padding: 9px 14px; border: 1px solid rgba(229,169,60,0.4); background: rgba(229,169,60,0.15); color: var(--gold2, #DAA520); font-weight: 700; font-size: 0.82rem; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
+        ⌨️ Shortcuts
+      </button>
+      <button id="helpTabBtnTour" onclick="switchHelpTab('tour')" class="help-tab-btn" style="flex: 1; padding: 9px 14px; border: 1px solid transparent; background: transparent; color: var(--muted, #888); font-weight: 600; font-size: 0.82rem; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
+        🚀 System Tour
+      </button>
+      <button id="helpTabBtnHealth" onclick="switchHelpTab('health')" class="help-tab-btn" style="flex: 1; padding: 9px 14px; border: 1px solid transparent; background: transparent; color: var(--muted, #888); font-weight: 600; font-size: 0.82rem; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
+        🟢 System Health
+      </button>
+    </div>
+
+    <!-- Modal Content Body -->
+    <div style="padding: 24px; overflow-y: auto; flex: 1;">
+      
+      <!-- TAB 1: SHORTCUTS -->
+      <div id="helpTabShortcuts" class="help-tab-content" style="display: block;">
+        <div style="font-size: 0.82rem; color: var(--muted, #aaa); margin-bottom: 16px;">
+          Keyboard shortcuts to boost your productivity in FounderMind AI:
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; font-weight: 600;">Global Search &amp; Filter</span>
+            <kbd style="background: rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.2);">⌘K / Ctrl+K</kbd>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; font-weight: 600;">Quick Action Menu</span>
+            <kbd style="background: rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.2);">⌘N / Ctrl+N</kbd>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; font-weight: 600;">Help &amp; System Center</span>
+            <kbd style="background: rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.2);">?</kbd>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; font-weight: 600;">Close Modals / Dropdowns</span>
+            <kbd style="background: rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.2);">Esc</kbd>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; font-weight: 600;">Send Chat Message</span>
+            <kbd style="background: rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.2);">Enter</kbd>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; font-weight: 600;">Multiline Chat Input</span>
+            <kbd style="background: rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.2);">Shift+Enter</kbd>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: SYSTEM TOUR -->
+      <div id="helpTabTour" class="help-tab-content" style="display: none;">
+        <div style="font-size: 0.82rem; color: var(--muted, #aaa); margin-bottom: 16px;">
+          Welcome to <strong>FounderMind AI</strong> — Your Autonomous AI Co-founder &amp; Executive OS:
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.03); border-left: 3px solid #E5A93C; border-radius: 6px;">
+            <div style="font-weight: 700; font-size: 0.85rem; color: #fff;">📊 Overview Dashboard</div>
+            <div style="font-size: 0.78rem; color: #aaa; margin-top: 2px;">Executive overview with real-time founder metrics, priority tasks, meeting radar, &amp; team activity feed.</div>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.03); border-left: 3px solid #3b82f6; border-radius: 6px;">
+            <div style="font-weight: 700; font-size: 0.85rem; color: #fff;">💬 Ask FounderMind AI</div>
+            <div style="font-size: 0.78rem; color: #aaa; margin-top: 2px;">Autonomous AI assistant using Cascadeflow dual-model routing &amp; Hindsight long-term memory engine.</div>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.03); border-left: 3px solid #22c55e; border-radius: 6px;">
+            <div style="font-weight: 700; font-size: 0.85rem; color: #fff;">✅ Priority Tasks</div>
+            <div style="font-size: 0.78rem; color: #aaa; margin-top: 2px;">Manage investor decks, technical tasks, and deadlines with priority levels and one-click completion.</div>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.03); border-left: 3px solid #a855f7; border-radius: 6px;">
+            <div style="font-weight: 700; font-size: 0.85rem; color: #fff;">📅 Calendar &amp; Prep</div>
+            <div style="font-size: 0.78rem; color: #aaa; margin-top: 2px;">Schedule investor syncs &amp; team meetings with AI-generated preparation briefs.</div>
+          </div>
+          <div style="padding: 12px 14px; background: rgba(255,255,255,0.03); border-left: 3px solid #ec4899; border-radius: 6px;">
+            <div style="font-weight: 700; font-size: 0.85rem; color: #fff;">📄 Documents Vault</div>
+            <div style="font-size: 0.78rem; color: #aaa; margin-top: 2px;">Store and query financial models, pitch decks, and legal documents.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: SYSTEM HEALTH -->
+      <div id="helpTabHealth" class="help-tab-content" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div style="font-size: 0.82rem; color: var(--muted, #aaa);">
+            Real-time status of backend services &amp; database connections:
+          </div>
+          <button onclick="fetchSystemHealth()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">
+            🔄 Refresh
+          </button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <div style="padding: 14px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 10px;">
+            <div style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: 700;">Flask Backend Server</div>
+            <div id="healthFlaskStatus" style="font-size: 0.95rem; font-weight: 800; color: #22c55e; margin-top: 4px;">🟢 200 OK</div>
+          </div>
+
+          <div style="padding: 14px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 10px;">
+            <div style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: 700;">SQLite Database</div>
+            <div id="healthDbStatus" style="font-size: 0.95rem; font-weight: 800; color: #22c55e; margin-top: 4px;">🟢 SQLITE_CONNECTED</div>
+          </div>
+
+          <div style="padding: 14px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 10px;">
+            <div style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: 700;">Groq LLM Engine</div>
+            <div id="healthGroqStatus" style="font-size: 0.95rem; font-weight: 800; color: #22c55e; margin-top: 4px;">🟢 Connected (Active)</div>
+          </div>
+
+          <div style="padding: 14px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 10px;">
+            <div style="font-size: 0.72rem; color: #888; text-transform: uppercase; font-weight: 700;">Cascadeflow Router</div>
+            <div id="healthCascadeStatus" style="font-size: 0.95rem; font-weight: 800; color: #22c55e; margin-top: 4px;">🟢 Connected</div>
+          </div>
+        </div>
+
+        <div style="padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; font-size: 0.78rem; line-height: 1.6; color: #ccc;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+            <span>Server Uptime:</span>
+            <strong id="healthUptime" style="color: #fff;">—</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px; margin-bottom: 6px;">
+            <span>Server Timestamp:</span>
+            <strong id="healthServerTime" style="color: #fff;">—</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>Database Records:</span>
+            <strong id="healthDbCounts" style="color: #fff;">—</strong>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

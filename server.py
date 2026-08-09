@@ -43,7 +43,13 @@ try:
     def hash_password(password: str) -> str:
         return bcrypt.generate_password_hash(password).decode("utf-8")
     def check_password(password_hash: str, password: str) -> bool:
-        return bcrypt.check_password_hash(password_hash, password)
+        if password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+            try:
+                return bcrypt.check_password_hash(password_hash, password)
+            except Exception:
+                pass
+        import hashlib
+        return hashlib.sha256(password.encode("utf-8")).hexdigest() == password_hash
 except ImportError:
     print("[Auth Warning]: flask_bcrypt not installed. Falling back to hashlib.sha256")
     import hashlib
@@ -784,6 +790,17 @@ def add_task():
     return jsonify({"id": task_id, "text": text, "priority": priority, "done": False, "created_at": created_at}), 201
 
 
+@app.route("/api/tasks", methods=["GET"])
+@login_required
+def get_tasks_api():
+    return get_tasks()
+
+@app.route("/api/tasks", methods=["POST"])
+@login_required
+def add_task_api():
+    return add_task()
+
+
 @app.route("/tasks/<task_id>", methods=["PATCH"])
 @app.route("/api/tasks/<task_id>", methods=["PATCH"])
 @login_required
@@ -1186,6 +1203,28 @@ def post_api_schedule():
     with get_db_connection() as conn:
         conn.execute("INSERT INTO meetings (id, title, date, time, with_, created_at) VALUES (?, ?, ?, ?, ?, ?)", (meeting_id, title, date, time_val, with_, created_at))
         conn.commit()
+    return jsonify({"id": meeting_id, "title": title, "date": date, "time": time_val, "with_": with_, "created_at": created_at}), 201
+
+# New API endpoint for meetings creation
+@app.route("/api/meetings", methods=["POST"])
+@login_required
+def api_add_meeting():
+    data = get_json_body()
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "Meeting title required"}), 400
+    meeting_id = str(uuid.uuid4())
+    date = data.get("date", "")
+    time_val = data.get("time", "")
+    with_ = data.get("with_", "")
+    created_at = now_iso()
+    with get_db_connection() as conn:
+        conn.execute(
+            "INSERT INTO meetings (id, title, date, time, with_, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (meeting_id, title, date, time_val, with_, created_at)
+        )
+        conn.commit()
+    log_audit(f"Meeting added via API -- {title[:40]}")
     return jsonify({"id": meeting_id, "title": title, "date": date, "time": time_val, "with_": with_, "created_at": created_at}), 201
 
 @app.route("/api/decisions", methods=["GET"])

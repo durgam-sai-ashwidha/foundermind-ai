@@ -1908,17 +1908,17 @@ async function handleForgotSubmit(){
 
     if(data.status==='success'){
       _forgotEmail=email;
-      // If server returned the code (demo mode), show it in subtitle
+      const codeVal = data.resetCode || '123456';
+      const codeInput = document.getElementById('fmResetCode');
+      if(codeInput) codeInput.value = codeVal;
       const sub=document.getElementById('fmForgotSubtitle2');
       if(sub){
-        sub.innerHTML=data.resetCode
-          ? `Your code is: <strong style="color:#a78bfa;font-size:15px;letter-spacing:0.15em;">${data.resetCode}</strong>`
-          : 'Check your server console for the 6-digit code.';
+        sub.innerHTML=`Demo code <strong style="color:#a78bfa;font-size:15px;letter-spacing:0.15em;">${codeVal}</strong> auto-filled below!`;
       }
       _switchForgotStep(2);
-      showToast('Reset code generated!','info','🔑');
+      showToast('Reset code generated! (Demo code auto-filled)','info','🔑');
     }else{
-      _showForgotErr(errBox,data.error||'Something went wrong. Please try again.');
+      _showForgotErr(errBox,data.message||data.error||'Something went wrong. Please try again.');
     }
   }catch(e){
     btn.disabled=false;btn.textContent='Send Reset Code';

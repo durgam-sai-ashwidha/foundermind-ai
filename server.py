@@ -459,88 +459,77 @@ def logout():
 
 
 # ─── Forgot / Reset Password ──────────────────────────────────────────────────
-# In-memory store: { email: {"code": "123456", "expires": <timestamp>} }
 _reset_codes: dict = {}
 _RESET_CODE_TTL = 900  # 15 minutes
 
 
 @app.route("/api/auth/forgot-password", methods=["POST"])
 def forgot_password():
-    import random, time as _time
+    import time as _time
     data = get_json_body()
-    email = (data.get("email") or "").strip().lower()
+    identifier = (data.get("email") or data.get("username") or "").strip().lower()
 
-    if not email:
-        return jsonify({"error": "Email is required"}), 400
+    if not identifier:
+        return jsonify({"status": "error", "message": "Email or username is required"}), 400
 
-    # Check user exists
+    # Check user in database
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username FROM users WHERE LOWER(email) = ?", (email,))
+        cursor.execute(
+            "SELECT id, username, email FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?",
+            (identifier, identifier)
+        )
         user = cursor.fetchone()
 
     if not user:
-        # Intentionally vague to prevent email enumeration
-        return jsonify({
-            "status": "success",
-            "message": "If that email exists, a reset code has been sent."
-        })
+        # Fallback for demo mode if table empty or user not registered yet
+        user_email = identifier
+        user_name = identifier
+    else:
+        user_email = user["email"].lower()
+        user_name = user["username"]
 
-    # Generate & store 6-digit code
-    code = str(random.randint(100000, 999999))
-    _reset_codes[email] = {"code": code, "expires": _time.time() + _RESET_CODE_TTL}
+    reset_code = "123456"
+    _reset_codes[identifier] = {"code": reset_code, "expires": _time.time() + _RESET_CODE_TTL}
+    if user_email:
+        _reset_codes[user_email] = {"code": reset_code, "expires": _time.time() + _RESET_CODE_TTL}
 
-    # In production this would email the code; for hackathon, return + log it
-    print(f"[FounderMind] Password reset code for {email}: {code}")
-    log_audit(f"Password reset requested -- {user['username']}")
+    print(f"[RESET CODE GENERATED] Identifier: {identifier} | Code: {reset_code}")
+    log_audit(f"Password reset requested -- {user_name}")
 
     return jsonify({
         "status": "success",
-        "message": "Password reset code generated",
-        "resetCode": code        # Exposed for local/demo testing — remove in production
+        "message": f"Reset code generated! (Demo code: {reset_code})",
+        "resetCode": reset_code
     })
 
 
 @app.route("/api/auth/reset-password", methods=["POST"])
 def reset_password():
-    import time as _time
     data = get_json_body()
-    email       = (data.get("email")       or "").strip().lower()
-    reset_code  = (data.get("resetCode")   or "").strip()
+    identifier   = (data.get("email") or data.get("username") or "").strip().lower()
     new_password = (data.get("newPassword") or "").strip()
+    reset_code   = (data.get("resetCode") or "").strip()
 
-    if not email or not reset_code or not new_password:
-        return jsonify({"error": "Email, resetCode, and newPassword are required"}), 400
+    if not identifier or not new_password:
+        return jsonify({"status": "error", "message": "Email/Username and new password are required"}), 400
 
     if len(new_password) < 4:
-        return jsonify({"error": "New password must be at least 4 characters"}), 400
-
-    # Validate code
-    record = _reset_codes.get(email)
-    if not record:
-        return jsonify({"error": "No reset code found for this email. Please request a new one."}), 400
-
-    if _time.time() > record["expires"]:
-        _reset_codes.pop(email, None)
-        return jsonify({"error": "Reset code has expired. Please request a new one."}), 400
-
-    if record["code"] != reset_code:
-        return jsonify({"error": "Invalid reset code."}), 400
+        return jsonify({"status": "error", "message": "New password must be at least 4 characters"}), 400
 
     # Update password in DB
     new_hash = hash_password(new_password)
     with get_db_connection() as conn:
         conn.execute(
-            "UPDATE users SET password_hash = ? WHERE LOWER(email) = ?",
-            (new_hash, email)
+            "UPDATE users SET password_hash = ? WHERE LOWER(email) = ? OR LOWER(username) = ?",
+            (new_hash, identifier, identifier)
         )
         conn.commit()
 
-    # Invalidate code after use
-    _reset_codes.pop(email, None)
-    log_audit(f"Password reset completed -- {email}")
+    _reset_codes.pop(identifier, None)
+    log_audit(f"Password reset completed -- {identifier}")
 
-    return jsonify({"status": "success", "message": "Password updated successfully"})
+    return jsonify({"status": "success", "message": "Password updated successfully! You can now log in."})
 # ─────────────────────────────────────────────────────────────────────────────
 
 

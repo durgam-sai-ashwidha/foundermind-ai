@@ -679,12 +679,50 @@ def get_chat_history():
 
 
 @app.route("/reset", methods=["POST"])
-@login_required
+@app.route("/api/reset", methods=["POST"])
 def reset_session():
     global conversation_history
     conversation_history = []
     log_audit("Session reset -- conversation history cleared")
     return jsonify({"status": "Session cleared. Long-term memories preserved."})
+
+
+@app.route("/api/decisions", methods=["GET"])
+def get_decisions():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, text, tag, saved_at FROM memories WHERE tag = 'decision' ORDER BY saved_at DESC")
+        rows = [dict(r) for r in c.fetchall()]
+    return jsonify(rows)
+
+
+@app.route("/api/decisions", methods=["POST"])
+def add_decision():
+    data = get_json_body()
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Decision text required"}), 400
+    mem_id = str(uuid.uuid4())
+    saved_at = now_str()
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO memories (id, text, tag, saved_at) VALUES (?, ?, 'decision', ?)", (mem_id, text, saved_at))
+        conn.commit()
+    log_audit(f"Decision logged -- {text[:40]}")
+    return jsonify({"id": mem_id, "text": text, "tag": "decision", "saved_at": saved_at}), 201
+
+
+@app.route("/api/insights", methods=["GET"])
+def get_insights():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        t_count = c.execute("SELECT COUNT(*) FROM tasks WHERE done = 0").fetchone()[0]
+        m_count = c.execute("SELECT COUNT(*) FROM meetings").fetchone()[0]
+        d_count = c.execute("SELECT COUNT(*) FROM memories WHERE tag = 'decision'").fetchone()[0]
+    return jsonify([
+        {"id": "ins-1", "title": "Priority Velocity", "detail": f"{t_count} open tasks pending review."},
+        {"id": "ins-2", "title": "Strategic Alignment", "detail": f"{d_count} key decisions recorded in memory bank."},
+        {"id": "ins-3", "title": "Calendar Load", "detail": f"{m_count} upcoming meetings scheduled."}
+    ])
 
 
 @app.route("/tasks", methods=["GET"])
@@ -975,8 +1013,10 @@ def get_analytics():
 
 
 @app.route("/settings", methods=["GET"])
+@app.route("/api/model", methods=["GET"])
 def get_settings():
     return jsonify({
+        "model": "groq/llama-3.3-70b-versatile",
         "models": {"low_cost": "groq/llama-3.1-8b-instant", "high_capacity": "groq/llama-3.3-70b-versatile"},
         "max_tokens": 600, "temperature": 0.1,
         "stack": {

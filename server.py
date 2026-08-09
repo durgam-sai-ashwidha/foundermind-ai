@@ -218,14 +218,14 @@ def recall_memories_hindsight(query):
     async def _async_recall():
         client = Hindsight(base_url=HINDSIGHT_BASE_URL, api_key=HINDSIGHT_API_KEY)
         try:
-            return await client.arecall(bank_id=HINDSIGHT_PIPELINE_ID, query=query)
+            return await asyncio.wait_for(client.arecall(bank_id=HINDSIGHT_PIPELINE_ID, query=query), timeout=1.5)
         finally:
             await client.aclose()
     try:
         response = run_async(_async_recall)
         mems = []
         if hasattr(response, 'results') and response.results:
-            for item in response.results:
+            for item in response.results[:3]: # Cap to top 3 relevant records
                 text = getattr(item, 'text', '') or (item.get('text') if isinstance(item, dict) else '')
                 if text:
                     mems.append(text)
@@ -235,7 +235,7 @@ def recall_memories_hindsight(query):
             return "\n---\n".join(mems)
         return ""
     except Exception as e:
-        print(f"[Hindsight Recall Error]: {e}")
+        print(f"[Hindsight Recall Error/Timeout]: {e}")
         return ""
 
 def classify_intent(message):
@@ -298,7 +298,7 @@ YOUR RULES:
     try:
         result = None
         if cascade_agent:
-            result = run_async(cascade_agent.run, query=full_query, max_tokens=600, temperature=0.1, complexity_hint=complexity_hint)
+            result = run_async(cascade_agent.run, query=full_query, max_tokens=512, temperature=0.1, complexity_hint=complexity_hint)
         
         latency_ms = round((time.time() - start_time) * 1000, 2)
         raw_reply = getattr(result, "content", "") if result else ""
@@ -308,16 +308,16 @@ YOUR RULES:
         if not reply.strip() and groq_client:
             try:
                 groq_resp = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model="llama-3.1-8b-instant",
                     messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
-                    max_tokens=600,
+                    max_tokens=512,
                     temperature=0.1,
                 )
                 reply = groq_resp.choices[0].message.content or ""
             except Exception as fe:
                 print(f"[Groq Direct Fallback Error]: {fe}")
 
-        model_used = getattr(result, "model_used", "groq/llama-3.3-70b-versatile") if result else "groq/llama-3.3-70b-versatile"
+        model_used = getattr(result, "model_used", "groq/llama-3.1-8b-instant") if result else "groq/llama-3.1-8b-instant"
         cost_usd = getattr(result, "total_cost", None) or getattr(result, "draft_cost", 0.0001) or 0.0001
         cascaded = bool(getattr(result, "cascaded", False)) if result else False
 
@@ -361,17 +361,17 @@ YOUR RULES:
         if groq_client:
             try:
                 groq_resp = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model="llama-3.1-8b-instant",
                     messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
-                    max_tokens=600,
+                    max_tokens=512,
                     temperature=0.1,
                 )
                 reply = groq_resp.choices[0].message.content
                 tokens = len(reply.split()) * 2
                 conversation_history.append({"role": "user", "content": user_message})
                 conversation_history.append({"role": "assistant", "content": reply})
-                log_audit(f"Groq Direct Fallback (70b) ({tokens} tokens)", model_used="llama-3.3-70b-versatile", model_alias="70B Heavy Model", rationale="Direct Groq API call", cost_usd=0.0001, latency_ms=latency_ms, is_fast_model=False, cascaded=False)
-                return {"reply": reply, "tokens": tokens, "cost_usd": 0.0001, "cost_saved_usd": 0.0, "latency_ms": latency_ms, "model_used": "groq/llama-3.3-70b-versatile", "model_alias": "70B Heavy Model", "is_fast_model": False, "cascaded": False, "error": False}
+                log_audit(f"Groq Direct Fallback (8b) ({tokens} tokens)", model_used="llama-3.1-8b-instant", model_alias="8B Fast Model", rationale="Direct Groq API call", cost_usd=0.0001, latency_ms=latency_ms, is_fast_model=True, cascaded=False)
+                return {"reply": reply, "tokens": tokens, "cost_usd": 0.0001, "cost_saved_usd": 0.0, "latency_ms": latency_ms, "model_used": "groq/llama-3.1-8b-instant", "model_alias": "8B Fast Model", "is_fast_model": True, "cascaded": False, "error": False}
             except Exception as ge:
                 err_text = f"{err_text} | Fallback Error: {ge}"
         log_audit(f"Cascadeflow call failed -- {err_text[:80]}")
@@ -1253,13 +1253,20 @@ def get_notifications():
             c.execute("SELECT id, title, message, type, read, timestamp FROM notifications ORDER BY id DESC")
             existing_rows = c.fetchall()
 
-        notifs = [{"id": r["id"], "title": r["title"], "message": r["message"],
-                   "type": r["type"], "read": bool(r["read"]), "timestamp": r["timestamp"]}
-                  for r in existing_rows]
-        unread_count = sum(1 for n in notifs if not n["read"])
-        print(f"[Notifications] Returning {len(notifs)} total notifications, {unread_count} unread\n")
+        seen_keys = set()
+        deduped_notifs = []
+        for r in existing_rows:
+            key = (r["title"].strip(), r["message"].strip())
+            if key not in seen_keys:
+                seen_keys.add(key)
+                deduped_notifs.append({
+                    "id": r["id"], "title": r["title"], "message": r["message"],
+                    "type": r["type"], "read": bool(r["read"]), "timestamp": r["timestamp"]
+                })
+        unread_count = sum(1 for n in deduped_notifs if not n["read"])
+        print(f"[Notifications] Returning {len(deduped_notifs)} total notifications (deduplicated), {unread_count} unread\n")
 
-    return jsonify({"notifications": notifs, "unread_count": unread_count, "total": len(notifs)})
+    return jsonify({"notifications": deduped_notifs, "unread_count": unread_count, "total": len(deduped_notifs)})
 
 
 @app.route("/api/notifications/<int:notif_id>/read", methods=["PATCH"])

@@ -2092,8 +2092,19 @@ function renderNotifications(notifs) {
     return;
   }
 
-  let html = '';
+  // Deduplicate items based on unique notification IDs
+  const seenIds = new Set();
+  const uniqueNotifs = [];
   notifs.forEach(n => {
+    const idKey = n.id ? String(n.id) : (n.title + '_' + n.timestamp);
+    if (!seenIds.has(idKey)) {
+      seenIds.add(idKey);
+      uniqueNotifs.push(n);
+    }
+  });
+
+  let html = '';
+  uniqueNotifs.forEach(n => {
     const isUnread = !n.read;
     const iconMap = {
       'task': '✅',
@@ -2277,9 +2288,51 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// ===== PERSIST CHART DATA ACROSS BROWSER REFRESHES =====
+let founderMindChartStore = {
+  runwayMonths: 18,
+  monthlyBurn: 12500,
+  taskTrends: [12, 19, 15, 25, 22, 30],
+  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+};
+
+function saveFounderMindChartData(data) {
+  try {
+    if (data) founderMindChartStore = Object.assign({}, founderMindChartStore, data);
+    localStorage.setItem('founderMindChartData', JSON.stringify(founderMindChartStore));
+  } catch(e) { console.error('[ChartData] Error saving to localStorage:', e); }
+}
+
+function loadFounderMindChartData() {
+  try {
+    const saved = localStorage.getItem('founderMindChartData');
+    if (saved) {
+      founderMindChartStore = JSON.parse(saved);
+    } else {
+      saveFounderMindChartData(founderMindChartStore);
+    }
+  } catch(e) { console.error('[ChartData] Error loading from localStorage:', e); }
+  return founderMindChartStore;
+}
+
+function renderFounderMindCharts() {
+  const data = loadFounderMindChartData();
+  const runwayEl = document.getElementById('chartRunwayValue');
+  const burnEl = document.getElementById('chartBurnValue');
+  if (runwayEl) runwayEl.textContent = `${data.runwayMonths} Mos`;
+  if (burnEl) burnEl.textContent = `$${(data.monthlyBurn || 0).toLocaleString()}/mo`;
+}
+
 document.addEventListener('DOMContentLoaded', function(){
   checkAuthState();
   fetchNotifications();
+
+  // 30-second background polling interval for notifications
+  setInterval(fetchNotifications, 30000);
+
+  // Load and render persisted chart metrics
+  loadFounderMindChartData();
+  renderFounderMindCharts();
 
   // ===== FIX CHAT RELOAD BUG =====
   // Attach Enter keydown listener ONCE here — never inside loadAll() or loops

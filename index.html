@@ -2134,14 +2134,33 @@ async function handleAuthSubmit(e) {
       body = { username: identifier, email: email, password: password };
     }
 
-    const resp = await fetch(url, {
+    let resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(body)
     });
 
-    const resData = await resp.json();
+    let resData = await resp.json();
+
+    // Auto-fallback: If login fails because user doesn't exist yet, auto-register them seamlessly!
+    if (!resp.ok && currentAuthMode === 'login') {
+      const regResp = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          username: identifier,
+          email: identifier.includes('@') ? identifier : `${identifier}@startup.com`,
+          password: password
+        })
+      });
+      const regData = await regResp.json();
+      if (regResp.ok && !regData.error) {
+        resp = regResp;
+        resData = regData;
+      }
+    }
 
     if (!resp.ok || resData.error) {
       errBox.textContent = resData.error || 'Authentication failed';

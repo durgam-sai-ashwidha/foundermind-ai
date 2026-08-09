@@ -137,11 +137,11 @@ def init_db():
             c.execute("ALTER TABLE chat_messages ADD COLUMN session_id TEXT DEFAULT NULL")
         except Exception:
             pass  # Column already exists
-        # Migrate memories to include user_id
-        try:
-            c.execute("ALTER TABLE memories ADD COLUMN user_id INTEGER DEFAULT NULL")
-        except Exception:
-            pass  # Column already exists
+        # Pre-seed default demo user 'founder' if not present
+        c.execute("SELECT id FROM users WHERE username = 'founder'")
+        if not c.fetchone():
+            pw_hash = hash_password("founder123")
+            c.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)", ("founder", "founder@startup.com", pw_hash))
         conn.commit()
 
 init_db()

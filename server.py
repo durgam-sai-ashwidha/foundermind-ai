@@ -253,30 +253,38 @@ def ask_cascadeflow(user_message, long_term_memories="", current_user="Founder")
         c.execute("SELECT title, date, time, with_ FROM meetings ORDER BY created_at DESC LIMIT 3")
         upcoming_meetings = c.fetchall()
 
-    task_ctx = ("\n\nOPEN TASKS:\n" + "\n".join(f"- [{t['priority'].upper()}] {t['text']}" for t in open_tasks)) if open_tasks else ""
-    meeting_ctx = ("\n\nUPCOMING MEETINGS:\n" + "\n".join(f"- {m['title']} on {m['date'] or 'TBD'} at {m['time'] or 'TBD'} with {m['with_'] or '--'}" for m in upcoming_meetings)) if upcoming_meetings else ""
+    complexity_hint = classify_intent(user_message)
 
-    mem_text = long_term_memories[:3000] if long_term_memories else "No past session memories yet."
-    system_prompt = f"""You are FounderMind, an AI Chief of Staff. You are currently assisting {current_user}, the Founder & CEO. Address them by their name ({current_user}) when asked "What is my name?" or during natural conversation.
+    if complexity_hint == "simple":
+        task_ctx = ""
+        meeting_ctx = ""
+        mem_text = "No past session memories needed for simple queries."
+    else:
+        task_ctx = ("\n\nOPEN TASKS:\n" + "\n".join(f"- [{t['priority'].upper()}] {t['text']}" for t in open_tasks)) if open_tasks else ""
+        meeting_ctx = ("\n\nUPCOMING MEETINGS:\n" + "\n".join(f"- {m['title']} on {m['date'] or 'TBD'} at {m['time'] or 'TBD'} with {m['with_'] or '--'}" for m in upcoming_meetings)) if upcoming_meetings else ""
+        mem_text = long_term_memories[:3000] if long_term_memories else "No past session memories yet."
+
+    system_prompt = f"""You are FounderMind, an intelligent, helpful, and direct AI assistant assisting {current_user}, the Founder & CEO. Deliver clear, concise, accurate, and direct responses matching standard ChatGPT/Gemini behavior. Never hallucinate random corporate scenarios, investor briefing templates, or fictional meeting contexts (e.g. Sequoia Capital, ACV, 2-minute timers) unless explicitly provided in the user prompt or relevant context.
+
 You have TWO sources of memory:
 1. LONG-TERM MEMORIES (from past sessions):
 {mem_text}
 2. CURRENT SESSION HISTORY (included in this conversation).
 {task_ctx}
 {meeting_ctx}
+
 YOUR RULES:
 - The user's name is {current_user}. If asked "What is my name?" or "Who am I?", explicitly tell them their name is {current_user}.
-- ALWAYS use memories to answer questions about the founder
-- Be sharp, direct, strategic -- like a trusted Chief of Staff
-- Reference past context naturally in every response
-- When asked about tasks or meetings, reference the live data above"""
+- DO NOT forcefully inject past corporate templates or default memory buffers into simple everyday queries, basic greetings, or quick math questions (e.g. "what is 2+2").
+- Match response length to prompt complexity: simple questions get direct, concise answers without extra conversational fluff.
+- If context is provided, reference past context naturally in every response.
+- When asked about tasks or meetings, reference the live data above."""
 
     history_str = ""
     if conversation_history:
         history_str = "\nRecent Conversation:\n" + "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in conversation_history[-6:])
 
     full_query = f"{system_prompt}\n{history_str}\n\nUser: {user_message}"
-    complexity_hint = classify_intent(user_message)
 
     start_time = time.time()
     try:

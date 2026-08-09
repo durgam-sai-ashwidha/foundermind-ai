@@ -741,7 +741,9 @@ async function loadSessions(){
     const savedSessionId = localStorage.getItem('active_chat_session_id');
     let targetSessionId = null;
 
-    if(savedSessionId && sessions.some(s => s.id === savedSessionId)){
+    if(savedSessionId === 'NEW'){
+      targetSessionId = null;
+    } else if(savedSessionId && sessions.some(s => s.id === savedSessionId)){
       targetSessionId = savedSessionId;
     } else if(sessions.length > 0){
       targetSessionId = sessions[0].id;
@@ -811,7 +813,7 @@ async function newChat(){
   try{
     await apiPost('/chat/new-session', {});
     currentSessionId = null;
-    localStorage.removeItem('active_chat_session_id');
+    localStorage.setItem('active_chat_session_id', 'NEW');
     showPage('chat', document.querySelectorAll('.nav-item')[1]);
     document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
     const messages = document.getElementById('messages');
@@ -1024,7 +1026,7 @@ async function sendMessage(){
   addMessage('user',text);
   addThinking();
   try{
-    const wasNewSession = !localStorage.getItem('active_chat_session_id');
+    const wasNewSession = !localStorage.getItem('active_chat_session_id') || localStorage.getItem('active_chat_session_id') === 'NEW';
     const data=await apiPost('/chat',{message:text});
     removeThinking();
     const reply=data.response||'Sorry, something went wrong.';

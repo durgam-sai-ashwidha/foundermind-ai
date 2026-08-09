@@ -1388,48 +1388,106 @@ async function sendMessage(){
   conversationHistory.push({role:'user',content:text});
   addMessage('user',text);
   addThinking();
+
   try{
     const wasNewSession = !localStorage.getItem('active_chat_session_id') || localStorage.getItem('active_chat_session_id') === 'NEW';
-    const data=await apiPost('/chat',{message:text});
-    removeThinking();
-    const reply=data.response||'Sorry, something went wrong.';
-    conversationHistory.push({role:'assistant',content:reply});
-    addMessage('ai',reply,data.memory_saved,data.telemetry||null);
-    if(data.session_id){
-      currentSessionId = data.session_id;
-      localStorage.setItem('active_chat_session_id', data.session_id);
-      if (wasNewSession && typeof loadSessions === 'function') {
-        await loadSessions();
-      } else if (typeof loadSessions === 'function') {
-        loadSessions();
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream'
+      },
+      credentials: 'include',
+      body: JSON.stringify({ message: text, stream: true })
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/event-stream') && response.body) {
+      removeThinking();
+      
+      const messages = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = 'msg ai';
+      const avatar = `<div class="avatar ai" style="background:linear-gradient(135deg,rgba(212,160,23,0.15),rgba(245,200,66,0.08));border:1px solid rgba(245,200,66,0.15);font-size:1.1rem;display:flex;align-items:center;justify-content:center;">🧠</div>`;
+      
+      const bubbleWrap = document.createElement('div');
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble ai';
+      const meta = document.createElement('div');
+      meta.className = 'msg-meta';
+      meta.textContent = getTime();
+
+      bubbleWrap.appendChild(bubble);
+      bubbleWrap.appendChild(meta);
+      div.innerHTML = avatar;
+      div.appendChild(bubbleWrap);
+      messages.appendChild(div);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let fullReply = '';
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:')) {
+            const dataStr = trimmed.slice(5).trim();
+            if (dataStr === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.token) {
+                fullReply += parsed.token;
+                bubble.innerHTML = fullReply.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+                messages.scrollTop = messages.scrollHeight;
+              }
+              if (parsed.session_id) {
+                currentSessionId = parsed.session_id;
+                localStorage.setItem('active_chat_session_id', parsed.session_id);
+              }
+            } catch (e) {}
+          }
+        }
+      }
+
+      conversationHistory.push({ role: 'assistant', content: fullReply });
+      if (typeof msgCount !== 'undefined') {
+        msgCount++;
+        const el = document.getElementById('msgCount');
+        if (el) el.textContent = msgCount;
+      }
+      if (wasNewSession && typeof loadSessions === 'function') loadSessions();
+
+    } else {
+      const data = await response.json();
+      removeThinking();
+      const reply = data.response || data.reply || 'Sorry, something went wrong.';
+      conversationHistory.push({ role: 'assistant', content: reply });
+      addMessage('ai', reply, data.memory_saved, data.telemetry || null);
+      if (data.session_id) {
+        currentSessionId = data.session_id;
+        localStorage.setItem('active_chat_session_id', data.session_id);
+        if (wasNewSession && typeof loadSessions === 'function') loadSessions();
       }
     }
-    if(data.memory_saved){
-      memCount++;
-      const memCountEl=document.getElementById('memCount');
-      if(memCountEl)memCountEl.textContent=memCount;
-      const badge=document.getElementById('lastMemory');
-      if(badge){badge.style.display='flex';}
-      const memText=document.getElementById('lastMemoryText');
-      if(memText){memText.textContent=text.slice(0,52)+(text.length>52?'...':'');}
-      // Refresh memory list from backend so tags/ids stay accurate
-      try{
-        const mem=await apiGet('/memories');
-        memories=mem.map(x=>({id:x.id,text:x.text,tag:x.tag,time:x.saved_at}));
-        renderMemories();
-        updateOverviewMemory();
-      }catch(e){}
-    }
-  }catch(err){
+  } catch(err) {
     removeThinking();
-    if(err && err.status===401 || (err && err.message && err.message.includes('401'))){
-      addMessage('ai','🔒 Your session has expired. Please log in again.');
-      showAuthModal();
+    if (err && (err.status === 401 || (err.message && err.message.includes('401')))) {
+      addMessage('ai', '🔒 Your session has expired. Please log in again.');
+      if (typeof showAuthModal === 'function') showAuthModal();
     } else {
-      addMessage('ai','⚠️ Connection error. Check that the FounderMind server is running and the URL in Settings is correct.');
+      addMessage('ai', '⚠️ Connection error. Check that the FounderMind server is running.');
     }
   }
-  btn.disabled=false;input.focus();
+  btn.disabled = false;
+  input.focus();
 }
 
 // ===== MEMORY =====

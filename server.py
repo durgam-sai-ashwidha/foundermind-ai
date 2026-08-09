@@ -9,7 +9,7 @@ import datetime
 import urllib.request
 import urllib.parse
 from functools import wraps
-from flask import Flask, request, jsonify, send_from_directory, session
+from flask import Flask, request, jsonify, send_from_directory, session, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -296,30 +296,32 @@ YOUR RULES:
 
     start_time = time.time()
     try:
-        result = None
-        if cascade_agent:
-            result = run_async(cascade_agent.run, query=full_query, max_tokens=512, temperature=0.1, complexity_hint=complexity_hint)
-        
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-        raw_reply = getattr(result, "content", "") if result else ""
-        reply = raw_reply if isinstance(raw_reply, str) else ""
+        reply = ""
+        model_used = "groq/llama-3.1-8b-instant"
+        cost_usd = 0.0001
+        cascaded = False
 
-        # Fallback to direct Groq client if cascade agent returned empty response or failed
-        if not reply.strip() and groq_client:
+        if groq_client:
             try:
                 groq_resp = groq_client.chat.completions.create(
                     model="llama-3.1-8b-instant",
                     messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
-                    max_tokens=512,
-                    temperature=0.1,
+                    max_tokens=300,
+                    temperature=0.2,
                 )
                 reply = groq_resp.choices[0].message.content or ""
             except Exception as fe:
-                print(f"[Groq Direct Fallback Error]: {fe}")
+                print(f"[Groq Direct Call Error]: {fe}")
 
-        model_used = getattr(result, "model_used", "groq/llama-3.1-8b-instant") if result else "groq/llama-3.1-8b-instant"
-        cost_usd = getattr(result, "total_cost", None) or getattr(result, "draft_cost", 0.0001) or 0.0001
-        cascaded = bool(getattr(result, "cascaded", False)) if result else False
+        if not reply.strip() and cascade_agent:
+            result = run_async(cascade_agent.run, query=full_query, max_tokens=300, temperature=0.2, complexity_hint=complexity_hint)
+            raw_reply = getattr(result, "content", "") if result else ""
+            reply = raw_reply if isinstance(raw_reply, str) else ""
+            model_used = getattr(result, "model_used", "groq/llama-3.1-8b-instant") if result else "groq/llama-3.1-8b-instant"
+            cost_usd = getattr(result, "total_cost", None) or getattr(result, "draft_cost", 0.0001) or 0.0001
+            cascaded = bool(getattr(result, "cascaded", False)) if result else False
+
+        latency_ms = round((time.time() - start_time) * 1000, 2)
 
         tokens = len(reply.split()) * 2
         conversation_history.append({"role": "user", "content": user_message})
@@ -564,6 +566,52 @@ def chat():
         session.modified = True
 
     print(f"\n[{current_user}]: {user_message}")
+
+    is_stream = data.get("stream") is True or request.headers.get("Accept") == "text/event-stream" or request.args.get("stream") == "true"
+
+    if is_stream and groq_client:
+        long_term = recall_memories_hindsight(user_message)
+        system_prompt = f"You are FounderMind, an AI Chief of Staff and Founder Operating System. Deliver direct, practical, clear responses. Match response length to query scope. User is {current_user}."
+
+        def generate_stream():
+            try:
+                stream_resp = groq_client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message}
+                    ],
+                    max_tokens=300,
+                    temperature=0.2,
+                    stream=True
+                )
+                full_chunks = []
+                for chunk in stream_resp:
+                    delta = (chunk.choices[0].delta.content if chunk.choices else "") or ""
+                    if delta:
+                        full_chunks.append(delta)
+                        yield f"data: {json.dumps({'token': delta})}\n\n"
+                
+                full_reply = "".join(full_chunks)
+                tokens = len(full_reply.split()) * 2
+
+                ts = now_str()
+                try:
+                    with get_db_connection() as conn:
+                        conn.execute("INSERT INTO chat_messages (user_id, role, message, timestamp, session_id) VALUES (?, ?, ?, ?, ?)", (user_id, "user", user_message, ts, chat_session_id))
+                        conn.execute("INSERT INTO chat_messages (user_id, role, message, timestamp, session_id) VALUES (?, ?, ?, ?, ?)", (user_id, "assistant", full_reply, ts, chat_session_id))
+                        conn.commit()
+                except Exception as dbe:
+                    print(f"[DB Chat Insert Error]: {dbe}")
+
+                log_audit(f"Groq Direct Streaming (8b) ({tokens} tokens)", model_used="llama-3.1-8b-instant", model_alias="8B Fast Model", rationale="Instant streaming tokens", cost_usd=0.0001, is_fast_model=True)
+                yield f"data: {json.dumps({'done': True, 'session_id': chat_session_id})}\n\n"
+            except Exception as e:
+                print(f"[Streaming Error]: {e}")
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+        return Response(generate_stream(), mimetype="text/event-stream")
+
     long_term = recall_memories_hindsight(user_message)
     result = ask_cascadeflow(user_message, long_term, current_user=current_user)
     reply, had_error = result["reply"], result["error"]

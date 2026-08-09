@@ -816,10 +816,12 @@ async function newChat(){
     document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
     const messages = document.getElementById('messages');
     if(messages) messages.innerHTML = '';
-    welcomeHidden = false;
+    const input = document.getElementById('userInput');
+    if(input) input.value = '';
+    welcomeHidden = true;
     const wc = document.getElementById('welcomeCard');
-    if(wc) wc.classList.remove('hidden');
-    await loadSessions();
+    if(wc) wc.classList.add('hidden');
+    addMessage('ai', 'Hello Sirish! How can FounderMind assist you today?');
   }catch(e){
     console.error('Failed to start new chat session:', e);
   }
@@ -1022,6 +1024,7 @@ async function sendMessage(){
   addMessage('user',text);
   addThinking();
   try{
+    const wasNewSession = !localStorage.getItem('active_chat_session_id');
     const data=await apiPost('/chat',{message:text});
     removeThinking();
     const reply=data.response||'Sorry, something went wrong.';
@@ -1030,7 +1033,11 @@ async function sendMessage(){
     if(data.session_id){
       currentSessionId = data.session_id;
       localStorage.setItem('active_chat_session_id', data.session_id);
-      loadSessions();
+      if (wasNewSession && typeof loadSessions === 'function') {
+        await loadSessions();
+      } else if (typeof loadSessions === 'function') {
+        loadSessions();
+      }
     }
     if(data.memory_saved){
       memCount++;

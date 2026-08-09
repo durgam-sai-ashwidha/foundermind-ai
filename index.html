@@ -997,15 +997,62 @@ async function loadSessions(){
     }
 
     const savedSessionId = localStorage.getItem('active_chat_session_id');
-    let targetSessionId = null;
+function saveChatHistoryToLocal() {
+  try {
+    const messagesEl = document.getElementById('messages');
+    if (!messagesEl) return;
+    const msgs = [];
+    messagesEl.querySelectorAll('.msg').forEach(el => {
+      if (el.id === 'thinking') return;
+      const isUser = el.classList.contains('user');
+      const bubble = el.querySelector('.bubble');
+      if (bubble) {
+        msgs.push({
+          role: isUser ? 'user' : 'assistant',
+          message: bubble.innerHTML
+        });
+      }
+    });
+    localStorage.setItem('founderMindChatHistory', JSON.stringify(msgs));
+  } catch(e) { console.error('Failed to save chat history to localStorage:', e); }
+}
 
-    if(savedSessionId === 'NEW'){
-      targetSessionId = null;
-    } else if(savedSessionId && sessions.some(s => s.id === savedSessionId)){
-      targetSessionId = savedSessionId;
-    } else if(sessions.length > 0){
-      targetSessionId = sessions[0].id;
+function restoreChatHistoryFromLocal() {
+  try {
+    const saved = localStorage.getItem('founderMindChatHistory');
+    if (!saved) return false;
+    const msgs = JSON.parse(saved);
+    if (!Array.isArray(msgs) || msgs.length === 0) return false;
+    const messagesEl = document.getElementById('messages');
+    if (messagesEl && messagesEl.children.length <= 1) {
+      if (!welcomeHidden) {
+        welcomeHidden = true;
+        const wc = document.getElementById('welcomeCard');
+        if (wc) wc.classList.add('hidden');
+      }
+      msgs.forEach(m => {
+        addMessage(m.role === 'user' ? 'user' : 'ai', m.message, false, null);
+      });
+      return true;
     }
+  } catch(e) { console.error('Failed to restore chat history from localStorage:', e); }
+  return false;
+}
+
+async function loadSessions(skipMessageReload = false){
+  try{
+    const res = await apiGet('/chat/sessions');
+    const sessions = Array.isArray(res) ? res : (res && Array.isArray(res.sessions) ? res.sessions : []);
+    const list = document.getElementById('sessionList');
+    if(!list) return false;
+    
+    if(sessions.length === 0){
+      list.innerHTML = '<div style="padding: 10px 14px; font-size: 0.72rem; color: var(--muted);">No past sessions</div>';
+      return false;
+    }
+
+    const savedActiveId = localStorage.getItem('active_chat_session_id');
+    const targetSessionId = (savedActiveId && savedActiveId !== 'NEW') ? savedActiveId : sessions[0].id;
 
     if(targetSessionId){
       currentSessionId = targetSessionId;
@@ -1016,15 +1063,15 @@ async function loadSessions(){
       const activeClass = s.id === currentSessionId ? 'active-session' : '';
       const safeTitle = (s.title || 'Chat Session').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       return `
-        <div class="session-item ${activeClass}" id="session-item-${s.id}" onclick="loadSession('${s.id}')">
+        <div class="session-item ${activeClass}" id="session-item-${s.id}" onclick="loadSession('${s.id}', true)">
           <div class="session-title" title="${safeTitle}">${safeTitle}</div>
           <div class="session-time">${s.created_at || ''}</div>
         </div>
       `;
     }).join('');
 
-    if(targetSessionId){
-      await loadSession(targetSessionId);
+    if(targetSessionId && !skipMessageReload){
+      await loadSession(targetSessionId, true);
       return true;
     }
     return false;
@@ -1034,7 +1081,7 @@ async function loadSessions(){
   }
 }
 
-async function loadSession(sessionId){
+async function loadSession(sessionId, forceReloadMessages = true){
   if(!sessionId) return;
   currentSessionId = sessionId;
   localStorage.setItem('active_chat_session_id', sessionId);
@@ -1043,6 +1090,8 @@ async function loadSession(sessionId){
   document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
   const activeEl = document.getElementById(`session-item-${sessionId}`);
   if(activeEl) activeEl.classList.add('active-session');
+
+  if(!forceReloadMessages) return;
   
   const messages = document.getElementById('messages');
   if(messages) messages.innerHTML = '';
@@ -1058,6 +1107,7 @@ async function loadSession(sessionId){
         const role = msg.role === 'assistant' ? 'ai' : 'user';
         addMessage(role, msg.message, false, null);
       });
+      saveChatHistoryToLocal();
       if(messages){
         setTimeout(()=>{messages.scrollTop = messages.scrollHeight;}, 80);
       }
@@ -1072,6 +1122,7 @@ async function newChat(){
     await apiPost('/chat/new-session', {});
     currentSessionId = null;
     localStorage.setItem('active_chat_session_id', 'NEW');
+    localStorage.removeItem('founderMindChatHistory');
     showPage('chat', document.querySelectorAll('.nav-item')[1]);
     document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
     const messages = document.getElementById('messages');
@@ -1082,6 +1133,7 @@ async function newChat(){
     const wc = document.getElementById('welcomeCard');
     if(wc) wc.classList.add('hidden');
     addMessage('ai', 'Hello Sirish! How can FounderMind assist you today?');
+    saveChatHistoryToLocal();
   }catch(e){
     console.error('Failed to start new chat session:', e);
   }
@@ -1105,6 +1157,7 @@ async function loadChatHistory(){
       const role = msg.role === 'assistant' ? 'ai' : 'user';
       addMessage(role, msg.message, false, null);
     });
+    saveChatHistoryToLocal();
     if(messages){
       setTimeout(()=>{messages.scrollTop=messages.scrollHeight;},80);
     }
@@ -1132,9 +1185,10 @@ async function loadAll(){
     updateOverview();
     updateSettingsStatus();
     
-    // Load sessions and restore active session sequentially
-    const hasLoadedSession = await loadSessions();
-    if(!hasLoadedSession){
+    // Restore chat history from localStorage or load sessions sequentially
+    const hasRestoredLocal = restoreChatHistoryFromLocal();
+    const hasLoadedSession = await loadSessions(hasRestoredLocal);
+    if(!hasRestoredLocal && !hasLoadedSession){
       await loadChatHistory();
     }
   }catch(e){
@@ -1463,7 +1517,8 @@ async function sendMessage(){
         const el = document.getElementById('msgCount');
         if (el) el.textContent = msgCount;
       }
-      if (wasNewSession && typeof loadSessions === 'function') loadSessions();
+      saveChatHistoryToLocal();
+      if (wasNewSession && typeof loadSessions === 'function') loadSessions(true);
 
     } else {
       const data = await response.json();
@@ -1471,10 +1526,11 @@ async function sendMessage(){
       const reply = data.response || data.reply || 'Sorry, something went wrong.';
       conversationHistory.push({ role: 'assistant', content: reply });
       addMessage('ai', reply, data.memory_saved, data.telemetry || null);
+      saveChatHistoryToLocal();
       if (data.session_id) {
         currentSessionId = data.session_id;
         localStorage.setItem('active_chat_session_id', data.session_id);
-        if (wasNewSession && typeof loadSessions === 'function') loadSessions();
+        if (wasNewSession && typeof loadSessions === 'function') loadSessions(true);
       }
     }
   } catch(err) {

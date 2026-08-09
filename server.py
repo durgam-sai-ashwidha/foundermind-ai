@@ -622,7 +622,7 @@ def chat():
 
     if should_save:
         try:
-            save_memory_hindsight(f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {reply}")
+            threading.Thread(target=save_memory_hindsight, args=(f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {reply}",), daemon=True).start()
         except Exception as e:
             print(f"[Hindsight Save Error - Non-fatal]: {e}")
         analytics_store["memories_saved"] += 1

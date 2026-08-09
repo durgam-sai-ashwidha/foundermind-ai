@@ -1124,6 +1124,32 @@ def get_api_insights():
         {"type": "suggestion", "text": "Consider preparing a pitch deck update for the upcoming investor sync."}
     ])
 
+# New endpoint for generated insights with metrics
+@app.route("/api/insights/generate", methods=["GET"])
+@login_required
+def generate_insights():
+    # Compute metrics
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        # distinct priorities count
+        c.execute("SELECT COUNT(DISTINCT priority) FROM tasks")
+        pri_count = c.fetchone()[0]
+        # total meetings count
+        c.execute("SELECT COUNT(*) FROM meetings")
+        meet_count = c.fetchone()[0]
+        # pending tasks count (tasks not done)
+        c.execute("SELECT COUNT(*) FROM tasks WHERE done = 0")
+        tasks_due = c.fetchone()[0]
+    # Get existing insights
+    insights = get_api_insights().get_json()
+    metrics = {
+        "priorities": pri_count,
+        "meetings": meet_count,
+        "tasks_due": tasks_due,
+        "insights": len(insights)
+    }
+    return jsonify({"metrics": metrics, "insights": insights})
+
 @app.route("/api/model", methods=["GET"])
 @login_required
 def get_api_model():

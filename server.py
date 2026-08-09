@@ -507,6 +507,7 @@ def index():
 
 
 @app.route("/chat", methods=["POST"])
+@app.route("/api/chat", methods=["POST"])
 @login_required
 def chat():
     data = get_json_body()
@@ -755,6 +756,7 @@ def get_insights():
 
 
 @app.route("/tasks", methods=["GET"])
+@app.route("/api/tasks", methods=["GET"])
 @login_required
 def get_tasks():
     with get_db_connection() as conn:
@@ -765,6 +767,7 @@ def get_tasks():
 
 
 @app.route("/tasks", methods=["POST"])
+@app.route("/api/tasks", methods=["POST"])
 @login_required
 def add_task():
     data = get_json_body()
@@ -782,6 +785,7 @@ def add_task():
 
 
 @app.route("/tasks/<task_id>", methods=["PATCH"])
+@app.route("/api/tasks/<task_id>", methods=["PATCH"])
 @login_required
 def update_task(task_id):
     with get_db_connection() as conn:
@@ -801,6 +805,7 @@ def update_task(task_id):
 
 
 @app.route("/tasks/<task_id>", methods=["DELETE"])
+@app.route("/api/tasks/<task_id>", methods=["DELETE"])
 @login_required
 def delete_task(task_id):
     with get_db_connection() as conn:
@@ -814,6 +819,7 @@ def delete_task(task_id):
 
 
 @app.route("/meetings", methods=["GET"])
+@app.route("/api/meetings", methods=["GET"])
 @login_required
 def get_meetings():
     with get_db_connection() as conn:
@@ -824,6 +830,7 @@ def get_meetings():
 
 
 @app.route("/meetings", methods=["POST"])
+@app.route("/api/meetings", methods=["POST"])
 @login_required
 def add_meeting():
     data = get_json_body()
@@ -1005,6 +1012,7 @@ def delete_memory(mem_id):
 
 
 @app.route("/analytics", methods=["GET"])
+@app.route("/api/analytics", methods=["GET"])
 @login_required
 def get_analytics():
     fast_count = analytics_store["routing"]["fast_8b"]
@@ -1118,6 +1126,7 @@ def generate_insights():
 
 
 @app.route("/health", methods=["GET"])
+@app.route("/api/health", methods=["GET"])
 def health():
     with get_db_connection() as conn:
         c = conn.cursor()

@@ -118,6 +118,7 @@ def init_db():
         c.execute("""CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, event TEXT NOT NULL, model_used TEXT DEFAULT '', model_alias TEXT DEFAULT '', rationale TEXT DEFAULT '', cost_usd REAL DEFAULT 0.0, cost_saved_usd REAL DEFAULT 0.0, latency_ms REAL DEFAULT 0.0, is_fast_model INTEGER DEFAULT 0, cascaded INTEGER DEFAULT 0)""")
         c.execute("""CREATE TABLE IF NOT EXISTS chat_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, role TEXT NOT NULL, message TEXT NOT NULL, timestamp TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))""")
         c.execute("""CREATE TABLE IF NOT EXISTS chat_sessions (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, title TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))""")
+        c.execute("""CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, message TEXT NOT NULL, type TEXT DEFAULT 'info', read INTEGER DEFAULT 0, timestamp TEXT NOT NULL)""")
 
         # Schema migrations
         c.execute("PRAGMA table_info(audit_logs)")
@@ -1152,6 +1153,107 @@ def health():
         docs_count = c.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         mems_count = c.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
     return jsonify({"status": "ok", "models": {"low_cost": "groq/llama-3.1-8b-instant", "high_capacity": "groq/llama-3.3-70b-versatile"}, "groq": "connected" if GROQ_API_KEY else "missing-key", "hindsight_sdk": "connected" if HINDSIGHT_API_KEY else "missing-key", "cascadeflow": "connected" if GROQ_API_KEY else "missing-key", "database": "sqlite3", "session_messages": len(conversation_history), "tasks": tasks_count, "meetings": meetings_count, "documents": docs_count, "memories": mems_count})
+
+# ══════════════════════════════════════════════════════════
+# NOTIFICATIONS API
+# ══════════════════════════════════════════════════════════
+
+@app.route("/api/notifications", methods=["GET"])
+def get_notifications():
+    """Return full notification objects. Derives from notifications table;
+    also surfaces relevant audit_log events or default alerts if empty."""
+    with get_db_connection() as conn:
+        c = conn.cursor()
+
+        c.execute("SELECT id, title, message, type, read, timestamp FROM notifications ORDER BY id DESC")
+        existing_rows = c.fetchall()
+        print(f"\n[Notifications DB Logs] Retrieved {len(existing_rows)} records from database:")
+        for r in existing_rows:
+            print(f"  ID:{r['id']} | Title:{r['title']} | Type:{r['type']} | Read:{r['read']} | Time:{r['timestamp']} | Msg:{r['message']}")
+
+        if len(existing_rows) == 0:
+            # Check if audit_logs has events
+            c.execute("""
+                SELECT id, timestamp, event FROM audit_logs
+                WHERE event NOT LIKE '%Memory recall%'
+                  AND event NOT LIKE '%Cascadeflow%'
+                  AND event NOT LIKE '%Memory retain%'
+                ORDER BY id DESC LIMIT 20
+            """)
+            audit_rows = c.fetchall()
+            if audit_rows:
+                print(f"[Notifications] Seeding {len(audit_rows)} notifications from audit_logs:")
+                for row in audit_rows:
+                    event = row["event"]
+                    if "Task added" in event:
+                        title = "Task Created"
+                        ntype = "task"
+                    elif "Meeting scheduled" in event or "Meeting added" in event:
+                        title = "Meeting Scheduled"
+                        ntype = "meeting"
+                    elif "logged in" in event or "logged out" in event:
+                        title = "Auth Event"
+                        ntype = "auth"
+                    elif "Memory" in event:
+                        title = "Memory Saved"
+                        ntype = "memory"
+                    elif "Decision" in event:
+                        title = "Decision Recorded"
+                        ntype = "decision"
+                    else:
+                        title = "System Activity"
+                        ntype = "info"
+                    c.execute(
+                        "INSERT INTO notifications (title, message, type, read, timestamp) VALUES (?, ?, ?, 0, ?)",
+                        (title, event, ntype, row["timestamp"])
+                    )
+            else:
+                default_notifs = [
+                    ("Meeting Scheduled", "Series A Pitch Sync with Sequoia Capital", "meeting", "10:00 AM"),
+                    ("MVP Launch Deadline", "FounderMind AI Beta v1.0 Launch target approaching", "system", "11:30 AM"),
+                    ("Decision Logged", "Approved 8B Fast Model cascade routing strategy", "decision", "02:15 PM"),
+                    ("Task Created", "Complete Q3 Investor Pitch Deck & Financial Model", "task", "04:45 PM"),
+                    ("Memory Retained", "Retained 120 key founder context decisions in memory store", "memory", "06:20 PM")
+                ]
+                print(f"[Notifications] Seeding {len(default_notifs)} default notifications:")
+                for title, msg, ntype, ts in default_notifs:
+                    c.execute(
+                        "INSERT INTO notifications (title, message, type, read, timestamp) VALUES (?, ?, ?, 0, ?)",
+                        (title, msg, ntype, ts)
+                    )
+            conn.commit()
+
+            c.execute("SELECT id, title, message, type, read, timestamp FROM notifications ORDER BY id DESC")
+            existing_rows = c.fetchall()
+
+        notifs = [{"id": r["id"], "title": r["title"], "message": r["message"],
+                   "type": r["type"], "read": bool(r["read"]), "timestamp": r["timestamp"]}
+                  for r in existing_rows]
+        unread_count = sum(1 for n in notifs if not n["read"])
+        print(f"[Notifications] Returning {len(notifs)} total notifications, {unread_count} unread\n")
+
+    return jsonify({"notifications": notifs, "unread_count": unread_count, "total": len(notifs)})
+
+
+@app.route("/api/notifications/<int:notif_id>/read", methods=["PATCH"])
+def mark_notification_read(notif_id):
+    """Mark a single notification as read."""
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("UPDATE notifications SET read = 1 WHERE id = ?", (notif_id,))
+        conn.commit()
+    return jsonify({"status": "ok", "id": notif_id})
+
+
+@app.route("/api/notifications/read-all", methods=["PATCH"])
+def mark_all_notifications_read():
+    """Mark all notifications as read."""
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("UPDATE notifications SET read = 1")
+        conn.commit()
+    return jsonify({"status": "ok"})
+
 
 # ══════════════════════════════════════════════════════════
 # EXECUTIVE STATE ENDPOINTS (Pass 3 & 4)

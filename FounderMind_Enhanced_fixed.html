@@ -8,15 +8,15 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
   --bg:#08080a;--surface:#101013;--card:#16161a;--border:#252528;
-  --gold:#d4a017;--gold2:#f5c842;--gold3:#fef3c7;
+  --gold:#b8860b;--gold2:#c9963a;--gold3:#e5d4aa;
   --text:#f5f5f3;--muted:#6b6b74;--green:#22c55e;
-  --glow:rgba(245,200,66,0.18);--glow2:rgba(245,200,66,0.06);
+  --glow:rgba(180,130,50,0.12);--glow2:rgba(180,130,50,0.05);
   --shadow:0 8px 32px rgba(0,0,0,0.6);
 }
 body.light{
   --bg:#f8f7f4;--surface:#ffffff;--card:#f1f0ec;--border:#e0dfd8;
-  --text:#000000;--muted:#3a3a3a;--glow:rgba(212,160,23,0.14);--glow2:rgba(212,160,23,0.08);
-  --gold2:#a66c00;--gold3:#8a5a00;
+  --text:#000000;--muted:#3a3a3a;--glow:rgba(180,130,50,0.10);--glow2:rgba(180,130,50,0.05);
+  --gold2:#7a5200;--gold3:#5a3d00;
   --shadow:0 4px 20px rgba(0,0,0,0.1);
   font-weight:600;
 }
@@ -62,8 +62,8 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .nav-sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;}
 .nav-sidebar::-webkit-scrollbar{width:3px;}
 .nav-sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
-.nav-logo-area{display:flex;justify-content:center;padding:16px 0 8px;}
-.nav-brain{width:72px;height:72px;border-radius:50%;object-fit:cover;filter:drop-shadow(0 0 12px rgba(245,200,66,0.55));animation:float 3.5s ease-in-out infinite alternate;}
+.nav-logo-area{display:flex;justify-content:center;padding:12px 0 6px;}
+.nav-brain{width:38px;height:38px;border-radius:50%;object-fit:cover;filter:drop-shadow(0 0 6px rgba(180,130,50,0.3));animation:float 3.5s ease-in-out infinite alternate;}
 @keyframes float{from{transform:translateY(0) scale(1);}to{transform:translateY(-5px) scale(1.03);}}
 .nav-section-title{font-size:0.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:0.13em;margin:12px 14px 6px;font-weight:600;font-family:monospace;}
 .nav-item{display:flex;align-items:center;gap:9px;padding:9px 14px;cursor:pointer;font-size:0.8rem;color:var(--muted);border-radius:0;transition:all 0.15s;border-left:2px solid transparent;margin:1px 0;}
@@ -280,7 +280,29 @@ body.light .welcome-title{
   -webkit-background-clip:text;background-clip:text;
 }
 
-/* TELEMETRY BADGES */
+/* TOAST NOTIFICATIONS */
+.fm-toast-container{position:fixed;bottom:24px;right:24px;z-index:999999;display:flex;flex-direction:column;gap:10px;pointer-events:none;}
+.fm-toast{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:12px;font-size:0.82rem;font-weight:600;color:#fff;box-shadow:0 8px 28px rgba(0,0,0,0.45);pointer-events:auto;animation:toastIn 0.35s cubic-bezier(0.34,1.4,0.64,1);max-width:320px;line-height:1.4;}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px) scale(0.95);}to{opacity:1;transform:translateY(0) scale(1);}}
+.fm-toast.success{background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(5,150,105,0.95));border:1px solid rgba(52,211,153,0.4);}
+.fm-toast.error{background:linear-gradient(135deg,rgba(239,68,68,0.95),rgba(185,28,28,0.95));border:1px solid rgba(252,165,165,0.4);}
+.fm-toast.info{background:linear-gradient(135deg,rgba(99,102,241,0.95),rgba(67,56,202,0.95));border:1px solid rgba(165,180,252,0.4);}
+.fm-toast-icon{font-size:1rem;flex-shrink:0;}
+/* FORGOT PASSWORD OVERLAY */
+#fmForgotOverlay{position:fixed;inset:0;background:rgba(5,5,12,0.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);z-index:999998;display:none;align-items:center;justify-content:center;}
+#fmForgotOverlay.visible{display:flex;}
+.fm-forgot-card{background:rgba(18,20,35,0.97);border:1px solid rgba(255,255,255,0.1);box-shadow:0 24px 60px rgba(0,0,0,0.7);border-radius:18px;width:100%;max-width:400px;padding:36px 32px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;position:relative;}
+.fm-forgot-back{position:absolute;top:14px;left:18px;background:none;border:none;color:#94a3b8;font-size:0.82rem;cursor:pointer;padding:4px 8px;border-radius:6px;transition:color 0.2s;display:flex;align-items:center;gap:5px;}
+.fm-forgot-back:hover{color:#f5c842;}
+.fm-forgot-step{display:none;}
+.fm-forgot-step.active{display:block;}
+.fm-forgot-input{width:100%;box-sizing:border-box;padding:11px 14px;background:rgba(15,23,42,0.85);border:1px solid rgba(255,255,255,0.12);border-radius:9px;color:#fff;font-size:13px;outline:none;margin-bottom:14px;transition:border-color 0.2s;}
+.fm-forgot-input:focus{border-color:#a78bfa;}
+.fm-forgot-label{display:block;font-size:12px;font-weight:600;color:#cbd5e1;margin-bottom:6px;}
+.fm-forgot-btn{width:100%;padding:12px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(99,102,241,0.4);transition:opacity 0.2s,transform 0.15s;margin-top:4px;}
+.fm-forgot-btn:hover{opacity:0.9;transform:translateY(-1px);}
+.fm-forgot-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+.fm-forgot-err{display:none;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#fca5a5;padding:9px 13px;border-radius:8px;font-size:12px;margin-bottom:14px;text-align:center;}
 .msg-telemetry-badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
 .telemetry-badge{font-size:0.72rem;font-weight:600;border-radius:8px;padding:3px 10px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,0.15);transition:all 0.2s ease;cursor:default;user-select:none;}
 .telemetry-badge:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.22);}
@@ -329,11 +351,24 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
 </header>
 
 <!-- STATS BAR -->
-<div class="stats-bar">
-  <div class="stat"><div class="stat-val" id="msgCount">0</div><div class="stat-label">Messages</div></div>
-  <div class="stat"><div class="stat-val" id="memCount">0</div><div class="stat-label">Memories</div></div>
-  <div class="stat"><div class="stat-val" id="sessionTime">0m</div><div class="stat-label">Session</div></div>
-  <div class="stat"><div class="stat-val">Groq AI</div><div class="stat-label">Powered By</div></div>
+<!-- FOUNDER METRICS BAR -->
+<div class="stats-bar" id="founderMetricsBar">
+  <div class="stat" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))" style="cursor:pointer">
+    <div class="stat-val" id="metricPriorities">—</div>
+    <div class="stat-label">🔴 Priorities</div>
+  </div>
+  <div class="stat" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))" style="cursor:pointer">
+    <div class="stat-val" id="metricMeetings">—</div>
+    <div class="stat-label">📅 Meetings</div>
+  </div>
+  <div class="stat" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))" style="cursor:pointer">
+    <div class="stat-val" id="metricTasks">—</div>
+    <div class="stat-label">✅ Tasks Due</div>
+  </div>
+  <div class="stat" onclick="showPage('memory',document.querySelector('[onclick*=memory]'))" style="cursor:pointer">
+    <div class="stat-val" id="metricInsights">—</div>
+    <div class="stat-label">💡 Insights</div>
+  </div>
 </div>
 
 <!-- MAIN -->
@@ -381,45 +416,54 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
   <!-- PAGE AREA -->
   <div class="page-area">
 
-    <!-- OVERVIEW PAGE -->
+    <!-- OVERVIEW PAGE (FOUNDER OS HOME) -->
     <div class="page active" id="page-overview">
-      <div class="page-title">Good morning, <span id="overview-user-name">Ash</span> 👏</div>
+      <div class="page-title">Good <span id="overview-time-greeting">morning</span>, <span id="overview-user-name">Founder</span> 👋</div>
+      <div class="page-subtitle" style="color:var(--muted);font-size:0.82rem;margin-bottom:20px;margin-top:-8px;">Here is what needs your attention today.</div>
       <div class="overview-grid-top">
         <div class="card">
-          <div class="card-title">Today's Priorities <button class="card-action" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">View All</button></div>
+          <div class="card-title">🔴 Today's Priorities <button class="card-action" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">View All</button></div>
           <div id="ovPriorities">
             <div class="empty-state"><div class="empty-icon">🎯</div>No priorities yet.<br><small>Add tasks to see them here.</small></div>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">Upcoming Meetings <button class="card-action" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))">View Calendar</button></div>
+          <div class="card-title">📅 Today's Schedule <button class="card-action" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))">View Calendar</button></div>
           <div id="ovMeetings">
             <div class="empty-state"><div class="empty-icon">📅</div>No meetings scheduled.<br><small>Add a meeting to get started.</small></div>
           </div>
         </div>
       </div>
-      <div class="overview-grid-bottom">
-        <div class="card">
-          <div class="card-title">Recent AI Chats <button class="card-action" onclick="showPage('chat',document.querySelector('[onclick*=\'chat\']'))">New Chat</button></div>
-          <div id="ovChats">
-            <div class="empty-state"><div class="empty-icon">💬</div>No chats yet.<br><small>Start a conversation with your AI Chief of Staff.</small></div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">AI Memory Summary <button class="card-action" onclick="showPage('memory',document.querySelector('[onclick*=memory]'))">Memory</button></div>
-          <div id="ovMemory">
-            <div class="empty-state"><div class="empty-icon">🧠</div>No memories saved yet.<br><small>Key context gets auto-saved during chats.</small></div>
-          </div>
+      <div class="card" style="margin-bottom:14px;border-left:3px solid var(--gold2);background:linear-gradient(135deg,var(--card),rgba(180,130,50,0.04));">
+        <div class="card-title">🧠 FounderMind Noticed</div>
+        <div id="ovInsight" style="font-size:0.85rem;color:var(--text);line-height:1.6;">
+          <span style="color:var(--muted);font-style:italic;">No proactive insights yet. Start chatting to surface key patterns.</span>
         </div>
       </div>
-      <div class="card">
-        <div class="card-title">Quick Actions</div>
-        <div class="quick-actions-row">
-          <button class="quick-action-btn" onclick="goToChat('What are my top priorities today?')">🎯 Morning Briefing</button>
-          <button class="quick-action-btn" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">✅ Add Task</button>
-          <button class="quick-action-btn" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))">📅 Schedule Meeting</button>
-          <button class="quick-action-btn" onclick="goToChat('Draft an investor update email for this week')">📧 Investor Update</button>
-          <button class="quick-action-btn" onclick="goToChat('What decisions do I need to make this week?')">🧠 Decision Review</button>
+      <div class="overview-grid-bottom">
+        <div class="card" style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title">🧠 Recent Decisions <button class="card-action" onclick="goToChat('Show me decisions we have logged')">Ask AI</button></div>
+          <div class="decision-search-box" style="display:flex; gap:8px; margin-bottom:4px;">
+            <input type="text" id="decisionSearchInput" placeholder="Search decisions..." oninput="updateOverviewChats()" style="flex:1; padding:6px 10px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:0.75rem;">
+          </div>
+          <div class="decision-filters" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+            <button class="filter-btn active" id="btn-dec-all" onclick="filterDecisionsTag('all')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--glow); color:var(--text); cursor:pointer; font-family:inherit;">All</button>
+            <button class="filter-btn" id="btn-dec-product" onclick="filterDecisionsTag('product')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Product</button>
+            <button class="filter-btn" id="btn-dec-technical" onclick="filterDecisionsTag('technical')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Technical</button>
+            <button class="filter-btn" id="btn-dec-financial" onclick="filterDecisionsTag('financial')" style="padding:4px 10px; border-radius:12px; font-size:0.65rem; border:1px solid var(--border); background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;">Financial</button>
+          </div>
+          <div id="ovChats">
+            <div class="empty-state"><div class="empty-icon">💬</div>No decisions logged yet.<br><small>Log key decisions during your chats.</small></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">⚡ Quick Actions</div>
+          <div class="quick-actions-row">
+            <button class="quick-action-btn" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">✅ New Task</button>
+            <button class="quick-action-btn" onclick="showPage('meetings',document.querySelector('[onclick*=meetings]'))">📅 Schedule Meeting</button>
+            <button class="quick-action-btn" onclick="goToChat('Log a decision:')">🧠 Log Decision</button>
+            <button class="quick-action-btn" onclick="goToChat(\"What's important today?\")">💬 Ask FounderMind</button>
+          </div>
         </div>
       </div>
     </div>
@@ -435,16 +479,16 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
             <div class="welcome-title">FounderMind</div>
             <div class="welcome-sub">Your AI Chief of Staff. I track investors, tasks, decisions, and anything that matters for your startup. What's on your mind today?</div>
             <div class="starter-chips">
-              <button class="starter-chip" onclick="sendQuick('Give me my morning briefing')">☀️ Morning Briefing</button>
-              <button class="starter-chip" onclick="sendQuick('What should I focus on this week?')">🎯 Weekly Priorities</button>
-              <button class="starter-chip" onclick="sendQuick('Help me prepare for an investor meeting')">💼 Investor Prep</button>
-              <button class="starter-chip" onclick="sendQuick('Review my current runway and burn rate')">📊 Financial Review</button>
+              <button class="starter-chip" onclick="sendQuick(\"What's important today?\")">📌 What's important today?</button>
+              <button class="starter-chip" onclick="sendQuick('Prepare me for my next meeting')">📅 Prepare for next meeting</button>
+              <button class="starter-chip" onclick="sendQuick('What did we decide about pricing?')">🧠 Decisions about pricing?</button>
+              <button class="starter-chip" onclick="sendQuick('Show me what is overdue')">⏰ Show what's overdue</button>
             </div>
           </div>
         </div>
         <div class="input-area">
           <div class="input-box">
-            <textarea id="userInput" placeholder="Ask your Chief of Staff anything..." rows="1" oninput="handleInput(this)"></textarea>
+            <textarea id="userInput" placeholder="Ask FounderMind about your company..." rows="1" oninput="handleInput(this)" onkeydown="handleKey(event)"></textarea>
           </div>
           <button id="sendBtn" onclick="sendMessage()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -1008,7 +1052,8 @@ function addMessage(role,text,saved,telemetry){
     }
     if(telemetry.memory_recalled){
       const cnt=telemetry.recalled_count||1;
-      badgesHtml+=`<span class="telemetry-badge badge-memory-recalled">🧠 Memory Recalled: Injected ${cnt} past session ${cnt===1?'memory':'memories'}</span>`;
+      const memId='mem-pill-'+Date.now();
+      badgesHtml+=`<span class="telemetry-badge badge-memory-recalled" style="cursor:pointer;" onclick="document.getElementById('${memId}').style.display=document.getElementById('${memId}').style.display==='none'?'block':'none'">🧠 FounderMind used ${cnt} relevant ${cnt===1?'memory':'memories'} <small>▾ tap to expand</small></span><div id="${memId}" style="display:none;font-size:0.72rem;color:var(--muted);margin-top:4px;padding:6px 10px;background:var(--glow2);border-radius:6px;">${telemetry.recalled_snippets||'Memory context was used to shape this response.'}</div>`;
     }
     if(saved){
       badgesHtml+=`<span class="telemetry-badge badge-memory-saved-telemetry">💾 Memory Retained</span>`;
@@ -1021,8 +1066,12 @@ function addMessage(role,text,saved,telemetry){
   div.innerHTML=isUser?bubble+avatar:avatar+bubble;
   messages.appendChild(div);
   setTimeout(()=>{messages.scrollTop=messages.scrollHeight;},50);
-  msgCount++;document.getElementById('msgCount').textContent=msgCount;
-  if(msgCount<=5)updateOverviewChats();
+  if(typeof msgCount!=='undefined'){
+    msgCount++;
+    const el=document.getElementById('msgCount');
+    if(el)el.textContent=msgCount;
+  }
+  if(typeof updateOverviewChats==='function' && typeof msgCount!=='undefined' && msgCount<=5)updateOverviewChats();
 }
 function addThinking(){
   const messages=document.getElementById('messages');
@@ -1388,37 +1437,71 @@ async function updateAnalytics(){
 }
 
 // ===== OVERVIEW UPDATES =====
-async function updateOverview(){
+function updateOverviewTimeGreeting() {
+  const el = document.getElementById('overview-time-greeting');
+  if(!el) return;
+  const hours = new Date().getHours();
+  if(hours < 12) el.textContent = 'morning';
+  else if(hours < 18) el.textContent = 'afternoon';
+  else el.textContent = 'evening';
+}
+
+function updateFounderMetricsBar() {
+  const metricPriorities = document.getElementById('metricPriorities');
+  const metricMeetings = document.getElementById('metricMeetings');
+  const metricTasks = document.getElementById('metricTasks');
+  const metricInsights = document.getElementById('metricInsights');
+
+  const openTasks = tasks.filter(t=>!t.done);
+  const highPriorityCount = openTasks.filter(t=>t.priority==='high').length;
+  const meetingsCount = meetings.length;
+  const tasksDueCount = openTasks.length;
+  const insightsCount = memories.length;
+
+  if(metricPriorities) metricPriorities.textContent = highPriorityCount;
+  if(metricMeetings) metricMeetings.textContent = meetingsCount;
+  if(metricTasks) metricTasks.textContent = tasksDueCount;
+  if(metricInsights) metricInsights.textContent = insightsCount;
+}
+
+function handleInsightAction(actionType) {
+  if(actionType === 'view_tasks') showPage('tasks', document.querySelector('[onclick*=tasks]'));
+  else if(actionType === 'view_meetings') showPage('meetings', document.querySelector('[onclick*=meetings]'));
+  else if(actionType === 'log_decision') { showPage('chat', document.querySelectorAll('.nav-item')[1]); document.getElementById('userInput').value = 'Log a decision: '; }
+  else if(actionType === 'chat_briefing') { showPage('chat', document.querySelectorAll('.nav-item')[1]); document.getElementById('userInput').value = 'What is important today?'; }
+}
+
+async function updateOverviewInsight() {
+  const el = document.getElementById('ovInsight');
+  if(!el) return;
+  try {
+    const insights = await apiGet('/api/insights/generate');
+    if(Array.isArray(insights) && insights.length > 0) {
+      el.innerHTML = insights.map(i => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:0.82rem;">⚡ ${i.text}</span>
+        <button onclick="handleInsightAction('${i.action_type}')" style="padding:4px 10px;border-radius:6px;font-size:0.68rem;background:var(--glow);border:1px solid var(--gold2);color:var(--gold2);cursor:pointer;white-space:nowrap;font-family:inherit;">${i.action_label}</button>
+      </div>`).join('');
+      return;
+    }
+  } catch(e) { /* fallback to local */ }
+  const incompleteTasks = tasks.filter(t=>!t.done);
+  const highPriority = incompleteTasks.filter(t=>t.priority==='high');
+  if(highPriority.length > 0) {
+    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><span>⚠️ <strong>FounderMind Noticed:</strong> ${highPriority.length} high-priority task(s) need attention.</span><button onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))" style="padding:4px 10px;border-radius:6px;font-size:0.68rem;background:var(--glow);border:1px solid var(--gold2);color:var(--gold2);cursor:pointer;font-family:inherit;">View Tasks</button></div>`;
+  } else if (incompleteTasks.length > 0) {
+    el.innerHTML = `💡 <strong>FounderMind Noticed:</strong> You have <strong>${incompleteTasks.length} tasks</strong> in progress. No critical bottlenecks.`;
+  } else {
+    el.innerHTML = `✨ <strong>FounderMind Noticed:</strong> All caught up! Start a chat to log decisions or meetings.`;
+  }
+}
+
+function updateOverview(){
+  updateOverviewTimeGreeting();
+  updateFounderMetricsBar();
   updateOverviewPriorities();
   updateOverviewMeetings();
   updateOverviewChats();
-  updateOverviewMemory();
-  // Dynamically fetch latest decisions and insights for overview
-  try{
-    const decisions=await apiGet('/api/decisions').catch(()=>([]));
-    const decList=Array.isArray(decisions)?decisions:(decisions.decisions||[]);
-    if(decList.length){
-      // Merge decisions into memories view
-      const decMems=decList.map(d=>({id:d.id,text:d.text,tag:'decision',time:d.time||''}));
-      const nonDec=memories.filter(m=>m.tag!=='decision');
-      memories=[...decMems,...nonDec];
-      updateOverviewMemory();
-    }
-  }catch(e){}
-  try{
-    const insights=await apiGet('/api/insights').catch(()=>null);
-    if(insights){
-      // Update Founder Metrics bar if elements exist
-      const prEl=document.getElementById('metricPriorities');
-      const mtEl=document.getElementById('metricMeetings');
-      const tdEl=document.getElementById('metricTasksDue');
-      const inEl=document.getElementById('metricInsights');
-      if(prEl&&insights.priorities!==undefined)prEl.textContent=insights.priorities+' PRIORITIES';
-      if(mtEl&&insights.meetings!==undefined)mtEl.textContent=insights.meetings+' MEETINGS';
-      if(tdEl&&insights.tasks_due!==undefined)tdEl.textContent=insights.tasks_due+' TASKS DUE';
-      if(inEl&&insights.insights!==undefined)inEl.textContent=insights.insights+' INSIGHT';
-    }
-  }catch(e){}
+  updateOverviewInsight();
 }
 
 function updateOverviewPriorities(){
@@ -1438,17 +1521,35 @@ function updateOverviewMeetings(){
   el.innerHTML=meetings.slice(0,3).map(m=>`<div class="meeting-item"><span class="meeting-time">${m.time||'TBD'}</span><span class="meeting-name">${m.title}</span></div>`).join('');
 }
 
-function updateOverviewChats(){
-  const el=document.getElementById('ovChats');
-  const msgs=conversationHistory.filter(m=>m.role==='user').slice(-3).reverse();
-  if(!msgs.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">💬</div>No chats yet.<br><small>Start a conversation with your AI Chief of Staff.</small></div>';return;}
-  el.innerHTML=msgs.map(m=>`<div class="chat-preview"><span class="chat-preview-icon">💬</span><div><div class="chat-preview-title">${m.content.slice(0,60)}${m.content.length>60?'...':''}</div><div class="chat-preview-time">Today</div></div></div>`).join('');
+let _decisionFilterTag = 'all';
+
+function filterDecisionsTag(tag) {
+  _decisionFilterTag = tag;
+  document.querySelectorAll('.decision-filters .filter-btn').forEach(btn => {
+    const isActive = btn.id === 'btn-dec-' + tag;
+    btn.style.background = isActive ? 'var(--glow)' : 'var(--bg)';
+    btn.style.color = isActive ? 'var(--text)' : 'var(--muted)';
+    btn.style.borderColor = isActive ? 'var(--gold2)' : 'var(--border)';
+  });
+  updateOverviewChats();
 }
 
-function updateOverviewMemory(){
-  const el=document.getElementById('ovMemory');
-  if(!memories.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">🧠</div>No memories saved yet.<br><small>Key context gets auto-saved during chats.</small></div>';return;}
-  el.innerHTML=memories.slice(0,3).map(m=>`<div class="memory-preview"><span class="memory-preview-icon">💾</span><span>${m.text.slice(0,55)}${m.text.length>55?'...':''}</span></div>`).join('');
+function updateOverviewChats(){
+  const el=document.getElementById('ovChats');
+  if(!el) return;
+  const searchQuery = (document.getElementById('decisionSearchInput')||{}).value || '';
+  const q = searchQuery.toLowerCase().trim();
+  let decs = memories.filter(m => m.tag==='decision' || m.text.toLowerCase().includes('decid'));
+  if(_decisionFilterTag !== 'all') {
+    decs = decs.filter(m => m.text.toLowerCase().includes(_decisionFilterTag) || (m.tag||'').toLowerCase().includes(_decisionFilterTag));
+  }
+  if(q) decs = decs.filter(m => m.text.toLowerCase().includes(q));
+  decs = decs.slice(0, 5);
+  if(!decs.length){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">🧠</div>' + (q ? 'No decisions match your search.' : 'No decisions logged yet.<br><small>Decisions are auto-extracted from chats.</small>') + '</div>';
+    return;
+  }
+  el.innerHTML=decs.map(m=>`<div class="chat-preview"><span class="chat-preview-icon">🧠</span><div><div class="chat-preview-title">${m.text.slice(0,65)}${m.text.length>65?'...':''}</div><div class="chat-preview-time">${m.time || 'Logged'}</div></div></div>`).join('');
 }
 
 renderTasks();
@@ -1487,15 +1588,68 @@ renderMeetings();
         <input type="email" id="authEmail" style="width: 100%; box-sizing: border-box; padding: 10px 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff; font-size: 13px; outline: none;" placeholder="founder@startup.com">
       </div>
 
-      <div style="margin-bottom: 20px;">
+      <div style="margin-bottom:14px;">
         <label style="display: block; font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">Password</label>
         <input type="password" id="authPassword" required style="width: 100%; box-sizing: border-box; padding: 10px 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff; font-size: 13px; outline: none;" placeholder="••••••••">
+        <div id="forgotPasswordLink" style="text-align:right;margin-top:6px;">
+          <button type="button" onclick="showForgotPassword()" style="background:none;border:none;color:#a78bfa;font-size:11.5px;cursor:pointer;font-weight:600;padding:0;text-decoration:underline;text-underline-offset:2px;transition:color 0.2s;" onmouseover="this.style.color='#c4b5fd'" onmouseout="this.style.color='#a78bfa'">Forgot Password?</button>
+        </div>
       </div>
 
       <button type="submit" id="authSubmitBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); transition: transform 0.1s; margin-bottom: 12px;">Sign In</button>
       
       <button type="button" onclick="quickDemoLogin()" style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.06); color: #cbd5e1; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;">⚡ Quick Demo Login (Instant Access)</button>
     </form>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="fmToastContainer" class="fm-toast-container"></div>
+
+<!-- FORGOT PASSWORD OVERLAY -->
+<div id="fmForgotOverlay">
+  <div class="fm-forgot-card">
+    <button class="fm-forgot-back" onclick="closeForgotPassword()">&#8592; Back to Login</button>
+
+    <!-- STEP 1: Enter Email -->
+    <div id="fmForgotStep1" class="fm-forgot-step active">
+      <div style="text-align:center;margin-bottom:22px;margin-top:8px;">
+        <div style="font-size:32px;margin-bottom:8px;">🔐</div>
+        <h3 style="margin:0 0 6px;font-size:18px;font-weight:700;background:linear-gradient(135deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Forgot Password?</h3>
+        <p style="color:#94a3b8;font-size:12.5px;margin:0;">Enter your account email and we&rsquo;ll generate a 6-digit reset code.</p>
+      </div>
+      <div id="fmForgotErr1" class="fm-forgot-err"></div>
+      <label class="fm-forgot-label">Email Address</label>
+      <input type="email" id="fmForgotEmail" class="fm-forgot-input" placeholder="founder@startup.com">
+      <button class="fm-forgot-btn" id="fmForgotBtn1" onclick="handleForgotSubmit()">Send Reset Code</button>
+    </div>
+
+    <!-- STEP 2: Enter Code + New Password -->
+    <div id="fmForgotStep2" class="fm-forgot-step">
+      <div style="text-align:center;margin-bottom:22px;margin-top:8px;">
+        <div style="font-size:32px;margin-bottom:8px;">🔑</div>
+        <h3 style="margin:0 0 6px;font-size:18px;font-weight:700;background:linear-gradient(135deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Enter Reset Code</h3>
+        <p id="fmForgotSubtitle2" style="color:#94a3b8;font-size:12.5px;margin:0;">Check your server console for the 6-digit code.</p>
+      </div>
+      <div id="fmForgotErr2" class="fm-forgot-err"></div>
+      <label class="fm-forgot-label">6-Digit Reset Code</label>
+      <input type="text" id="fmResetCode" class="fm-forgot-input" placeholder="e.g. 482910" maxlength="6" inputmode="numeric" style="letter-spacing:0.25em;font-size:18px;text-align:center;">
+      <label class="fm-forgot-label">New Password</label>
+      <input type="password" id="fmNewPassword" class="fm-forgot-input" placeholder="Min. 4 characters">
+      <label class="fm-forgot-label">Confirm New Password</label>
+      <input type="password" id="fmConfirmPassword" class="fm-forgot-input" placeholder="Re-enter new password">
+      <button class="fm-forgot-btn" id="fmForgotBtn2" onclick="handleResetSubmit()">Reset Password</button>
+    </div>
+
+    <!-- STEP 3: Success -->
+    <div id="fmForgotStep3" class="fm-forgot-step">
+      <div style="text-align:center;padding:16px 0 8px;">
+        <div style="font-size:48px;margin-bottom:12px;">✅</div>
+        <h3 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#34d399;">Password Updated!</h3>
+        <p style="color:#94a3b8;font-size:13px;margin:0 0 24px;">Your password has been reset. Sign in with your new password.</p>
+        <button class="fm-forgot-btn" onclick="closeForgotPassword()" style="background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 14px rgba(16,185,129,0.4);">Back to Sign In</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1509,6 +1663,22 @@ function switchAuthTab(mode) {
   const emailGroup = document.getElementById('emailGroup');
   const submitBtn = document.getElementById('authSubmitBtn');
   const errBox = document.getElementById('authErrorMsg');
+  const forgotLink = document.getElementById('forgotPasswordLink');
+  errBox.style.display = 'none';
+  if (mode === 'login') {
+    loginTab.style.background = '#6366f1'; loginTab.style.color = '#fff';
+    registerTab.style.background = 'transparent'; registerTab.style.color = '#94a3b8';
+    emailGroup.style.display = 'none';
+    submitBtn.textContent = 'Sign In';
+    if(forgotLink) forgotLink.style.display = 'block';
+  } else {
+    registerTab.style.background = '#6366f1'; registerTab.style.color = '#fff';
+    loginTab.style.background = 'transparent'; loginTab.style.color = '#94a3b8';
+    emailGroup.style.display = 'block';
+    submitBtn.textContent = 'Create Account';
+    if(forgotLink) forgotLink.style.display = 'none';
+  }
+}
   const identifierInput = document.getElementById('authIdentifier');
 
   errBox.style.display = 'none';
@@ -1681,6 +1851,135 @@ function updateProfileName(name){
   if(greetEl)greetEl.textContent=n;
   const profEl=document.getElementById('profileName');
   if(profEl)profEl.textContent=n;
+}
+
+// ===== FORGOT PASSWORD FUNCTIONS =====
+let _forgotEmail = '';
+
+function showForgotPassword(){
+  // Reset all steps
+  ['fmForgotStep1','fmForgotStep2','fmForgotStep3'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.classList.remove('active');}
+  });
+  const step1=document.getElementById('fmForgotStep1');
+  if(step1)step1.classList.add('active');
+  const emailInput=document.getElementById('fmForgotEmail');
+  if(emailInput)emailInput.value='';
+  ['fmForgotErr1','fmForgotErr2'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.style.display='none';el.textContent='';}
+  });
+  const overlay=document.getElementById('fmForgotOverlay');
+  if(overlay)overlay.classList.add('visible');
+}
+
+function closeForgotPassword(){
+  const overlay=document.getElementById('fmForgotOverlay');
+  if(overlay)overlay.classList.remove('visible');
+  _forgotEmail='';
+}
+
+function _switchForgotStep(stepNum){
+  for(let i=1;i<=3;i++){
+    const el=document.getElementById('fmForgotStep'+i);
+    if(el)el.classList.toggle('active',i===stepNum);
+  }
+}
+
+async function handleForgotSubmit(){
+  const emailInput=document.getElementById('fmForgotEmail');
+  const errBox=document.getElementById('fmForgotErr1');
+  const btn=document.getElementById('fmForgotBtn1');
+  const email=(emailInput?emailInput.value:'').trim();
+
+  if(!email){_showForgotErr(errBox,'Please enter your email address.');return;}
+  errBox.style.display='none';
+  btn.disabled=true;btn.textContent='Sending...';
+
+  try{
+    const res=await fetch('/api/auth/forgot-password',{
+      method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email})
+    });
+    const data=await res.json();
+    btn.disabled=false;btn.textContent='Send Reset Code';
+
+    if(data.status==='success'){
+      _forgotEmail=email;
+      // If server returned the code (demo mode), show it in subtitle
+      const sub=document.getElementById('fmForgotSubtitle2');
+      if(sub){
+        sub.innerHTML=data.resetCode
+          ? `Your code is: <strong style="color:#a78bfa;font-size:15px;letter-spacing:0.15em;">${data.resetCode}</strong>`
+          : 'Check your server console for the 6-digit code.';
+      }
+      _switchForgotStep(2);
+      showToast('Reset code generated!','info','🔑');
+    }else{
+      _showForgotErr(errBox,data.error||'Something went wrong. Please try again.');
+    }
+  }catch(e){
+    btn.disabled=false;btn.textContent='Send Reset Code';
+    _showForgotErr(errBox,'Network error. Please check your connection.');
+  }
+}
+
+async function handleResetSubmit(){
+  const errBox=document.getElementById('fmForgotErr2');
+  const btn=document.getElementById('fmForgotBtn2');
+  const code=(document.getElementById('fmResetCode')||{}).value||'';
+  const newPass=(document.getElementById('fmNewPassword')||{}).value||'';
+  const confirmPass=(document.getElementById('fmConfirmPassword')||{}).value||'';
+
+  if(!code.trim()){_showForgotErr(errBox,'Please enter the 6-digit reset code.');return;}
+  if(newPass.length<4){_showForgotErr(errBox,'New password must be at least 4 characters.');return;}
+  if(newPass!==confirmPass){_showForgotErr(errBox,'Passwords do not match. Please try again.');return;}
+
+  errBox.style.display='none';
+  btn.disabled=true;btn.textContent='Resetting...';
+
+  try{
+    const res=await fetch('/api/auth/reset-password',{
+      method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:_forgotEmail,resetCode:code.trim(),newPassword:newPass})
+    });
+    const data=await res.json();
+    btn.disabled=false;btn.textContent='Reset Password';
+
+    if(data.status==='success'){
+      _switchForgotStep(3);
+      showToast('Password updated successfully!','success','✅');
+    }else{
+      _showForgotErr(errBox,data.error||'Failed to reset password. Please try again.');
+    }
+  }catch(e){
+    btn.disabled=false;btn.textContent='Reset Password';
+    _showForgotErr(errBox,'Network error. Please check your connection.');
+  }
+}
+
+function _showForgotErr(el,msg){
+  if(!el)return;
+  el.textContent=msg;
+  el.style.display='block';
+}
+
+function showToast(message,type='info',icon='ℹ️',duration=4000){
+  const container=document.getElementById('fmToastContainer');
+  if(!container)return;
+  const toast=document.createElement('div');
+  toast.className=`fm-toast ${type}`;
+  toast.innerHTML=`<span class="fm-toast-icon">${icon}</span><span>${message}</span>`;
+  container.appendChild(toast);
+  setTimeout(()=>{
+    toast.style.transition='opacity 0.4s ease,transform 0.4s ease';
+    toast.style.opacity='0';
+    toast.style.transform='translateY(10px)';
+    setTimeout(()=>toast.remove(),400);
+  },duration);
 }
 </script>
 </body>

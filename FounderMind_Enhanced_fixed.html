@@ -71,6 +71,20 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .nav-item.active{background:var(--glow);color:var(--gold2);border-left-color:var(--gold2);font-weight:600;}
 .nav-item .nav-icon{font-size:1rem;width:22px;text-align:center;}
 
+/* SESSION HISTORY SIDEBAR */
+.session-section{padding:4px 0 2px;}
+.new-chat-btn{display:flex;align-items:center;gap:7px;margin:4px 10px 6px;padding:7px 12px;background:linear-gradient(135deg,rgba(245,200,66,0.12),rgba(212,160,23,0.07));border:1px solid rgba(245,200,66,0.25);border-radius:8px;cursor:pointer;font-size:0.75rem;color:var(--gold2);font-weight:600;transition:all 0.18s;letter-spacing:0.03em;}
+.new-chat-btn:hover{background:linear-gradient(135deg,rgba(245,200,66,0.22),rgba(212,160,23,0.14));border-color:var(--gold2);transform:translateX(1px);}
+.session-list{max-height:220px;overflow-y:auto;padding:2px 0;}
+.session-list::-webkit-scrollbar{width:3px;}
+.session-list::-webkit-scrollbar-track{background:transparent;}
+.session-list::-webkit-scrollbar-thumb{background:rgba(245,200,66,0.2);border-radius:2px;}
+.session-item{display:flex;flex-direction:column;gap:2px;padding:7px 14px 7px 20px;cursor:pointer;border-left:2px solid transparent;transition:all 0.14s;margin:1px 0;}
+.session-item:hover{background:var(--glow2);border-left-color:rgba(245,200,66,0.35);}
+.session-item.active-session{background:var(--glow);border-left-color:var(--gold2);}
+.session-title{font-size:0.74rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;}
+.session-time{font-size:0.6rem;color:var(--muted);font-family:monospace;}
+
 /* DARK/LIGHT TOGGLE in sidebar */
 .theme-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;font-size:0.8rem;color:var(--muted);}
 .toggle-switch{width:36px;height:20px;background:var(--border);border-radius:10px;position:relative;cursor:pointer;transition:background 0.2s;}
@@ -105,18 +119,18 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .quick-actions-row{display:flex;gap:10px;flex-wrap:wrap;}
 .quick-action-btn{padding:10px 16px;background:var(--glow2);border:1px solid rgba(245,200,66,0.2);border-radius:10px;color:var(--gold3);font-size:0.78rem;cursor:pointer;font-family:inherit;transition:all 0.2s;display:flex;align-items:center;gap:7px;}
 .quick-action-btn:hover{background:var(--glow);border-color:var(--gold2);transform:translateY(-2px);}
-.priority-item{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid var(--border);}
+.priority-item{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid var(--border);transition:opacity 0.25s ease;}
 .priority-item:last-child{border-bottom:none;}
-.priority-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0;}
-.priority-dot.high{background:#ef4444;}
-.priority-dot.med{background:#f59e0b;}
-.priority-dot.low{background:var(--green);}
-.priority-text{font-size:0.8rem;color:var(--text);}
+.priority-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+.priority-dot.high{background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,0.4);}
+.priority-dot.med{background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.4);}
+.priority-dot.low{background:var(--green);box-shadow:0 0 6px rgba(34,197,94,0.4);}
+.priority-text{font-size:0.8rem;color:var(--text);word-break:break-word;overflow-wrap:break-word;line-height:1.4;}
 .priority-sub{font-size:0.65rem;color:var(--muted);}
 .meeting-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
 .meeting-item:last-child{border-bottom:none;}
-.meeting-time{font-size:0.7rem;color:var(--gold2);font-family:monospace;min-width:50px;}
-.meeting-name{font-size:0.8rem;color:var(--text);}
+.meeting-time{font-size:0.7rem;color:var(--gold2);font-family:monospace;min-width:50px;flex-shrink:0;}
+.meeting-name{font-size:0.8rem;color:var(--text);word-break:break-word;overflow-wrap:break-word;}
 .empty-state{text-align:center;padding:30px 20px;color:var(--muted);font-size:0.82rem;}
 .empty-state .empty-icon{font-size:2rem;margin-bottom:8px;}
 .chat-preview{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;align-items:flex-start;}
@@ -125,8 +139,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .chat-preview-icon{font-size:0.9rem;margin-top:2px;}
 .chat-preview-title{font-size:0.8rem;color:var(--text);}
 .chat-preview-time{font-size:0.65rem;color:var(--muted);}
-.memory-preview{display:flex;gap:8px;padding:7px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px;font-size:0.78rem;color:var(--text);}
-.memory-preview-icon{color:var(--gold2);}
+.memory-preview{display:flex;gap:8px;padding:7px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px;font-size:0.78rem;color:var(--text);word-break:break-word;overflow-wrap:break-word;line-height:1.45;animation:fadeSlideIn 0.3s ease;}
+.memory-preview-icon{color:var(--gold2);flex-shrink:0;}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 
 /* MEMORY PAGE */
 .search-bar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:18px;}
@@ -140,7 +155,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .badge-task{background:rgba(34,197,94,0.12);color:var(--green);}
 .badge-decision{background:rgba(239,68,68,0.12);color:#f87171;}
 .badge-revenue{background:rgba(59,130,246,0.12);color:#60a5fa;}
-.memory-card-text{font-size:0.82rem;color:var(--text);line-height:1.5;}
+.memory-card-text{font-size:0.82rem;color:var(--text);line-height:1.55;word-break:break-word;overflow-wrap:break-word;}
 .memory-card-time{font-size:0.62rem;color:var(--muted);margin-top:6px;font-family:monospace;}
 
 /* TASKS PAGE */
@@ -156,11 +171,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .filter-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
 .filter-btn{padding:5px 14px;border-radius:20px;font-size:0.72rem;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);font-family:inherit;transition:all 0.2s;}
 .filter-btn.active,.filter-btn:hover{background:var(--glow);border-color:var(--gold2);color:var(--gold3);}
-.task-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;transition:border-color 0.2s;}
-.task-item:hover{border-color:rgba(245,200,66,0.2);}
+.task-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;transition:border-color 0.2s,transform 0.15s;animation:fadeSlideIn 0.28s ease;}
+.task-item:hover{border-color:rgba(245,200,66,0.25);transform:translateX(2px);}
 .task-check{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);cursor:pointer;flex-shrink:0;transition:all 0.2s;display:flex;align-items:center;justify-content:center;}
 .task-check.done{background:var(--green);border-color:var(--green);color:#fff;font-size:0.65rem;}
-.task-text{flex:1;font-size:0.82rem;color:var(--text);}
+.task-text{flex:1;font-size:0.82rem;color:var(--text);word-break:break-word;overflow-wrap:break-word;line-height:1.4;min-width:0;}
 .task-text.done{text-decoration:line-through;color:var(--muted);}
 .priority-badge{padding:2px 8px;border-radius:20px;font-size:0.6rem;font-weight:600;text-transform:uppercase;white-space:nowrap;}
 .badge-high{background:rgba(239,68,68,0.15);color:#f87171;}
@@ -175,9 +190,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .meeting-card-date{text-align:center;min-width:48px;}
 .meeting-card-day{font-size:1.4rem;font-weight:700;font-family:Georgia,serif;color:var(--gold2);line-height:1;}
 .meeting-card-month{font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;font-family:monospace;}
-.meeting-card-body{flex:1;}
-.meeting-card-title{font-size:0.88rem;font-weight:600;color:var(--text);margin-bottom:4px;}
-.meeting-card-meta{font-size:0.7rem;color:var(--muted);display:flex;gap:12px;}
+.meeting-card-body{flex:1;min-width:0;}
+.meeting-card-title{font-size:0.88rem;font-weight:600;color:var(--text);margin-bottom:4px;word-break:break-word;overflow-wrap:break-word;}
+.meeting-card-meta{font-size:0.7rem;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;}
 .ai-prep-btn{padding:6px 12px;background:var(--glow2);border:1px solid rgba(245,200,66,0.2);border-radius:8px;color:var(--gold3);font-size:0.7rem;cursor:pointer;font-family:inherit;transition:all 0.2s;white-space:nowrap;}
 .ai-prep-btn:hover{background:var(--glow);border-color:var(--gold2);}
 
@@ -210,7 +225,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 /* SETTINGS PAGE */
 .settings-section{margin-bottom:22px;}
 .settings-section-title{font-size:0.68rem;color:var(--gold2);text-transform:uppercase;letter-spacing:0.1em;font-family:monospace;margin-bottom:12px;}
-.settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;gap:12px;}
 .settings-label{font-size:0.82rem;color:var(--text);}
 .settings-sub{font-size:0.65rem;color:var(--muted);}
 .connected-badge{padding:3px 10px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.25);border-radius:20px;font-size:0.65rem;color:var(--green);font-weight:600;}
@@ -237,7 +252,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .avatar{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
 .avatar.ai{background:linear-gradient(135deg,rgba(212,160,23,0.15),rgba(245,200,66,0.08));border:1px solid rgba(245,200,66,0.15);}
 .avatar.user-av{background:var(--card);border:1px solid var(--border);font-size:1rem;}
-.bubble{padding:13px 16px;border-radius:16px;font-size:0.875rem;line-height:1.7;max-width:640px;}
+.bubble{padding:13px 16px;border-radius:16px;font-size:0.875rem;line-height:1.7;max-width:640px;word-break:break-word;overflow-wrap:break-word;}
 .bubble.ai{background:var(--card);border:1px solid var(--border);border-radius:4px 16px 16px 16px;}
 .bubble.user{background:linear-gradient(135deg,rgba(212,160,23,0.18),rgba(245,200,66,0.1));border:1px solid rgba(245,200,66,0.2);border-radius:16px 4px 16px 16px;}
 .msg-meta{font-size:0.62rem;color:var(--muted);margin-top:6px;padding:0 4px;}
@@ -267,7 +282,8 @@ body.light .welcome-title{
 
 /* TELEMETRY BADGES */
 .msg-telemetry-badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
-.telemetry-badge{font-size:0.72rem;font-weight:600;border-radius:8px;padding:3px 10px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,0.15);transition:all 0.2s ease;}
+.telemetry-badge{font-size:0.72rem;font-weight:600;border-radius:8px;padding:3px 10px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,0.15);transition:all 0.2s ease;cursor:default;user-select:none;}
+.telemetry-badge:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.22);}
 .badge-cost-saved{background:rgba(16,185,129,0.12);color:#10b981;border:1px solid rgba(16,185,129,0.3);}
 .badge-memory-recalled{background:rgba(139,92,246,0.12);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);}
 .badge-memory-saved-telemetry{background:rgba(14,165,233,0.12);color:#38bdf8;border:1px solid rgba(14,165,233,0.3);}
@@ -332,6 +348,10 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
     <div class="nav-section-title">Navigation</div>
     <div class="nav-item active" onclick="showPage('overview',this)"><span class="nav-icon">🏠</span> Overview</div>
     <div class="nav-item" onclick="showPage('chat',this)"><span class="nav-icon">💬</span> AI Chat</div>
+    <div class="session-section">
+      <div class="new-chat-btn" id="newChatBtn" onclick="newChat()">＋ New Chat</div>
+      <div class="session-list" id="sessionList"></div>
+    </div>
     <div class="nav-item" onclick="showPage('memory',this)"><span class="nav-icon">🧠</span> Memory</div>
     <div class="nav-item" onclick="showPage('tasks',this)"><span class="nav-icon">✅</span> Tasks</div>
     <div class="nav-item" onclick="showPage('meetings',this)"><span class="nav-icon">📅</span> Meetings</div>
@@ -346,12 +366,15 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
     </div>
 
     <!-- PROFILE -->
-    <div class="profile-chip">
-      <div class="profile-avatar">A</div>
-      <div>
-        <div class="profile-name">Ash</div>
-        <div class="profile-role">Founder &amp; CEO</div>
+    <div class="profile-chip" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;" title="Click to Logout" onclick="handleLogout()">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="profile-avatar" id="profileAvatar">?</div>
+        <div>
+          <div class="profile-name" id="profileName">Loading...</div>
+          <div class="profile-role">Founder &amp; CEO</div>
+        </div>
       </div>
+      <div style="font-size: 10px; font-weight: 600; color: #94a3b8; padding: 4px 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;">Logout</div>
     </div>
   </div>
 
@@ -360,7 +383,7 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
 
     <!-- OVERVIEW PAGE -->
     <div class="page active" id="page-overview">
-      <div class="page-title">Good morning, Ash 👋</div>
+      <div class="page-title">Good morning, <span id="overview-user-name">Ash</span> 👏</div>
       <div class="overview-grid-top">
         <div class="card">
           <div class="card-title">Today's Priorities <button class="card-action" onclick="showPage('tasks',document.querySelector('[onclick*=tasks]'))">View All</button></div>
@@ -421,7 +444,7 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
         </div>
         <div class="input-area">
           <div class="input-box">
-            <textarea id="userInput" placeholder="Ask your Chief of Staff anything..." rows="1" oninput="handleInput(this)" onkeydown="handleKey(event)"></textarea>
+            <textarea id="userInput" placeholder="Ask your Chief of Staff anything..." rows="1" oninput="handleInput(this)"></textarea>
           </div>
           <button id="sendBtn" onclick="sendMessage()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -625,11 +648,21 @@ body.light .badge-memory-saved-telemetry{background:rgba(14,165,233,0.15);color:
         <div class="settings-section-title">Profile</div>
         <div class="settings-row">
           <div><div class="settings-label">Name</div></div>
-          <input class="form-input" type="text" value="Ash" style="width:160px">
+          <input class="form-input" type="text" id="usernameInput" value="Ash" style="width:160px" oninput="updateProfileName(this.value)">
         </div>
         <div class="settings-row">
           <div><div class="settings-label">Role</div></div>
           <input class="form-input" type="text" value="Founder & CEO" style="width:160px">
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title" style="color:#ef4444">Danger Zone</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Reset Company State</div>
+            <div class="settings-sub">Clear active tasks, meetings, memories, and chat history</div>
+          </div>
+          <button class="card-action" onclick="resetCompanyState()" style="border-color:#ef4444;color:#ef4444;">⚠️ Reset State</button>
         </div>
       </div>
     </div>
@@ -657,24 +690,42 @@ function setApiBase(url){
 }
 
 async function apiGet(path){
-  const res=await fetch(API_BASE+path);
+  const res=await fetch(API_BASE+path,{credentials:'include'});
+  if(res.status===401){showAuthModal();throw new Error('401 Unauthorized');}
   if(!res.ok)throw new Error('Request failed: '+path);
   return res.json();
 }
 async function apiPost(path,body){
-  const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(body||{})});
+  if(res.status===401){showAuthModal();throw Object.assign(new Error('401 Unauthorized'),{status:401});}
   if(!res.ok)throw new Error('Request failed: '+path);
   return res.json();
 }
 async function apiPatch(path,body){
-  const res=await fetch(API_BASE+path,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const res=await fetch(API_BASE+path,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(body||{})});
+  if(res.status===401){showAuthModal();throw new Error('401 Unauthorized');}
   if(!res.ok)throw new Error('Request failed: '+path);
   return res.json();
 }
 async function apiDelete(path){
-  const res=await fetch(API_BASE+path,{method:'DELETE'});
+  const res=await fetch(API_BASE+path,{method:'DELETE',credentials:'include'});
+  if(res.status===401){showAuthModal();throw new Error('401 Unauthorized');}
   if(!res.ok)throw new Error('Request failed: '+path);
   return res.json();
+}
+
+function showAuthModal(){
+  const overlay=document.getElementById('authModalOverlay');
+  if(overlay)overlay.style.display='flex';
+}
+
+function updateProfileUI(username){
+  const avatarEl=document.getElementById('profileAvatar');
+  const nameEl=document.getElementById('profileName');
+  const greetingEl=document.getElementById('overview-user-name');
+  if(avatarEl)avatarEl.textContent=(username||'?')[0].toUpperCase();
+  if(nameEl)nameEl.textContent=username||'User';
+  if(greetingEl)greetingEl.textContent=username||'Founder';
 }
 
 async function checkHealth(){
@@ -687,23 +738,159 @@ async function checkHealth(){
   }
 }
 
+let currentSessionId = null;
+
+async function loadSessions(){
+  try{
+    const sessions = await apiGet('/chat/sessions');
+    const list = document.getElementById('sessionList');
+    if(!list) return false;
+    if(!Array.isArray(sessions) || sessions.length === 0){
+      list.innerHTML = '';
+      return false;
+    }
+
+    const savedSessionId = localStorage.getItem('active_chat_session_id');
+    let targetSessionId = null;
+
+    if(savedSessionId === 'NEW'){
+      targetSessionId = null;
+    } else if(savedSessionId && sessions.some(s => s.id === savedSessionId)){
+      targetSessionId = savedSessionId;
+    } else if(sessions.length > 0){
+      targetSessionId = sessions[0].id;
+    }
+
+    if(targetSessionId){
+      currentSessionId = targetSessionId;
+      localStorage.setItem('active_chat_session_id', targetSessionId);
+    }
+
+    list.innerHTML = sessions.map(s => {
+      const activeClass = s.id === currentSessionId ? 'active-session' : '';
+      const safeTitle = (s.title || 'Chat Session').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `
+        <div class="session-item ${activeClass}" id="session-item-${s.id}" onclick="loadSession('${s.id}')">
+          <div class="session-title" title="${safeTitle}">${safeTitle}</div>
+          <div class="session-time">${s.created_at || ''}</div>
+        </div>
+      `;
+    }).join('');
+
+    if(targetSessionId){
+      await loadSession(targetSessionId);
+      return true;
+    }
+    return false;
+  }catch(e){
+    console.warn('Could not load sessions:', e);
+    return false;
+  }
+}
+
+async function loadSession(sessionId){
+  if(!sessionId) return;
+  currentSessionId = sessionId;
+  localStorage.setItem('active_chat_session_id', sessionId);
+  
+  // Highlight active session item in sidebar
+  document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
+  const activeEl = document.getElementById(`session-item-${sessionId}`);
+  if(activeEl) activeEl.classList.add('active-session');
+  
+  const messages = document.getElementById('messages');
+  if(messages) messages.innerHTML = '';
+  welcomeHidden = true;
+  const wc = document.getElementById('welcomeCard');
+  if(wc) wc.classList.add('hidden');
+
+  try{
+    const res = await apiGet(`/chat/sessions/${sessionId}/messages`);
+    const history = Array.isArray(res) ? res : (res && Array.isArray(res.messages) ? res.messages : []);
+    if(history.length > 0){
+      history.forEach(msg => {
+        const role = msg.role === 'assistant' ? 'ai' : 'user';
+        addMessage(role, msg.message, false, null);
+      });
+      if(messages){
+        setTimeout(()=>{messages.scrollTop = messages.scrollHeight;}, 80);
+      }
+    }
+  }catch(e){
+    console.error('Failed to load session messages:', e);
+  }
+}
+
+async function newChat(){
+  try{
+    await apiPost('/chat/new-session', {});
+    currentSessionId = null;
+    localStorage.setItem('active_chat_session_id', 'NEW');
+    showPage('chat', document.querySelectorAll('.nav-item')[1]);
+    document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active-session'));
+    const messages = document.getElementById('messages');
+    if(messages) messages.innerHTML = '';
+    const input = document.getElementById('userInput');
+    if(input) input.value = '';
+    welcomeHidden = true;
+    const wc = document.getElementById('welcomeCard');
+    if(wc) wc.classList.add('hidden');
+    addMessage('ai', 'Hello Sirish! How can FounderMind assist you today?');
+  }catch(e){
+    console.error('Failed to start new chat session:', e);
+  }
+}
+
+async function loadChatHistory(){
+  try{
+    const history = await apiGet('/chat/history?limit=50');
+    if(!Array.isArray(history)||history.length===0) return;
+    const messages = document.getElementById('messages');
+    if(!welcomeHidden){
+      welcomeHidden=true;
+      const wc=document.getElementById('welcomeCard');
+      if(wc)wc.classList.add('hidden');
+    }
+    const divider=document.createElement('div');
+    divider.style.cssText='text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.28);padding:8px 0 4px;letter-spacing:0.05em;';
+    divider.textContent='— Active session —';
+    if(messages) messages.appendChild(divider);
+    history.forEach(msg=>{
+      const role = msg.role === 'assistant' ? 'ai' : 'user';
+      addMessage(role, msg.message, false, null);
+    });
+    if(messages){
+      setTimeout(()=>{messages.scrollTop=messages.scrollHeight;},80);
+    }
+  }catch(e){
+    console.warn('Could not load chat history:', e);
+  }
+}
+
 async function loadAll(){
   document.getElementById('apiBaseInput').value=API_BASE;
   checkHealth();
   try{
-    const [t,m,d,mem]=await Promise.all([
-      apiGet('/tasks'),apiGet('/meetings'),apiGet('/documents'),apiGet('/memories')
+    const [t,m,d,memRes]=await Promise.all([
+      apiGet('/tasks'),apiGet('/meetings'),apiGet('/documents'),apiGet('/memories/hindsight')
     ]);
     tasks=t.map(x=>({id:x.id,text:x.text,priority:x.priority,done:x.done}));
     meetings=m.map(x=>({id:x.id,title:x.title,date:x.date,time:x.time,with:x.with_}));
     documents=d;
-    memories=mem.map(x=>({id:x.id,text:x.text,tag:x.tag,time:x.saved_at}));
+    const memList = Array.isArray(memRes) ? memRes : (memRes.memories || []);
+    memories=memList.map(x=>({id:x.id,text:x.text,tag:x.tag || 'decision',time:x.saved_at || x.time || ''}));
     memCount=memories.length;
     const memCountEl=document.getElementById('memCount');
     if(memCountEl)memCountEl.textContent=memCount;
     renderTasks();renderMeetings();renderDocuments();renderMemories();
     updateOverview();
     updateSettingsStatus();
+    
+    // Load sessions and restore active session sequentially
+    const hasLoadedSession = await loadSessions();
+    if(!hasLoadedSession){
+      await loadChatHistory();
+    }
   }catch(e){
     console.error('Failed to load initial data',e);
   }
@@ -719,6 +906,14 @@ async function updateSettingsStatus(){
     setBadge('cascadeflowStatus',(stack.cascadeflow||{}).status==='CONNECTED');
     const sub=document.getElementById('groqModelSub');
     if(sub&&s.model)sub.textContent=s.model;
+    const modelInfo=document.getElementById('modelInfo');
+    if(modelInfo&&s.model)modelInfo.textContent=s.model;
+  }catch(e){}
+  // Also fetch /api/model for Settings page
+  try{
+    const m=await fetch(API_BASE+'/api/model',{credentials:'include'}).then(r=>r.json());
+    const modelInfo=document.getElementById('modelInfo');
+    if(modelInfo&&m&&m.model)modelInfo.textContent=m.model;
   }catch(e){}
 }
 
@@ -761,7 +956,7 @@ function toggleTheme(){
 
 // ===== CHAT =====
 function handleInput(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';if(!welcomeHidden&&el.value.trim().length>0){welcomeHidden=true;document.getElementById('welcomeCard').classList.add('hidden');}else if(welcomeHidden&&el.value.trim().length===0){welcomeHidden=false;document.getElementById('welcomeCard').classList.remove('hidden');}}
-function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
+function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}} // kept for legacy inline calls
 
 // ===== TYPE ANYWHERE -> CHAT INPUT =====
 // If the user starts typing while focus isn't on an editable field,
@@ -851,11 +1046,21 @@ async function sendMessage(){
   addMessage('user',text);
   addThinking();
   try{
+    const wasNewSession = !localStorage.getItem('active_chat_session_id') || localStorage.getItem('active_chat_session_id') === 'NEW';
     const data=await apiPost('/chat',{message:text});
     removeThinking();
     const reply=data.response||'Sorry, something went wrong.';
     conversationHistory.push({role:'assistant',content:reply});
     addMessage('ai',reply,data.memory_saved,data.telemetry||null);
+    if(data.session_id){
+      currentSessionId = data.session_id;
+      localStorage.setItem('active_chat_session_id', data.session_id);
+      if (wasNewSession && typeof loadSessions === 'function') {
+        await loadSessions();
+      } else if (typeof loadSessions === 'function') {
+        loadSessions();
+      }
+    }
     if(data.memory_saved){
       memCount++;
       const memCountEl=document.getElementById('memCount');
@@ -874,7 +1079,12 @@ async function sendMessage(){
     }
   }catch(err){
     removeThinking();
-    addMessage('ai','⚠️ Connection error. Check that the FounderMind server is running and the URL in Settings is correct.');
+    if(err && err.status===401 || (err && err.message && err.message.includes('401'))){
+      addMessage('ai','🔒 Your session has expired. Please log in again.');
+      showAuthModal();
+    } else {
+      addMessage('ai','⚠️ Connection error. Check that the FounderMind server is running and the URL in Settings is correct.');
+    }
   }
   btn.disabled=false;input.focus();
 }
@@ -915,6 +1125,62 @@ async function addTask(){
     renderTasks();
     updateOverviewPriorities();
   }catch(e){addMessage&&console.error('Failed to add task',e);}
+}
+
+// addPriority: alias for modal quick-add using priorityText + prioritySelect inputs
+async function addPriority(){
+  const textEl=document.getElementById('priorityText')||document.getElementById('taskInput');
+  const selectEl=document.getElementById('prioritySelect')||document.getElementById('taskPriority');
+  const text=(textEl?textEl.value:'').trim();
+  const priority=selectEl?selectEl.value:'high';
+  if(!text)return;
+  if(textEl)textEl.value='';
+  try{
+    const t=await apiPost('/tasks',{text,priority});
+    tasks.unshift({id:t.id,text:t.text,priority:t.priority,done:t.done});
+    renderTasks();
+    updateOverviewPriorities();
+  }catch(e){console.error('Failed to add priority',e);}
+}
+
+// addDecision: POST to /api/decisions
+async function addDecision(){
+  const textEl=document.getElementById('decisionText');
+  const text=(textEl?textEl.value:'').trim();
+  if(!text)return;
+  if(textEl)textEl.value='';
+  try{
+    await apiPost('/api/decisions',{text});
+    // Refresh memories list to show new decision
+    const memRes=await apiGet('/memories/hindsight').catch(()=>([]));
+    const memList=Array.isArray(memRes)?memRes:(memRes.memories||[]);
+    memories=memList.map(x=>({id:x.id,text:x.text,tag:x.tag||'decision',time:x.saved_at||x.time||''}));
+    memCount=memories.length;
+    const memCountEl=document.getElementById('memCount');
+    if(memCountEl)memCountEl.textContent=memCount;
+    renderMemories();
+    updateOverviewMemory();
+  }catch(e){console.error('Failed to add decision',e);}
+}
+
+// resetCompanyState: wipe all client state and call /api/reset
+async function resetCompanyState(){
+  if(!confirm('Are you sure you want to reset all company state? This will clear tasks, meetings, memories, and chat history.'))return;
+  try{
+    await fetch(API_BASE+'/api/reset',{method:'POST',credentials:'include'});
+  }catch(e){console.warn('Reset endpoint error (may be /reset alias)',e);}
+  tasks=[];meetings=[];memories=[];documents=[];conversationHistory=[];
+  memCount=0;
+  const memCountEl=document.getElementById('memCount');
+  if(memCountEl)memCountEl.textContent=0;
+  renderTasks();renderMeetings();renderDocuments();renderMemories();
+  // Clear chat messages display
+  const messagesEl=document.getElementById('messages');
+  if(messagesEl)messagesEl.innerHTML='';
+  const wc=document.getElementById('welcomeCard');
+  if(wc){wc.classList.remove('hidden');welcomeHidden=false;}
+  updateOverview();
+  alert('Company state has been reset.');
 }
 
 async function toggleTask(id){
@@ -1122,11 +1388,37 @@ async function updateAnalytics(){
 }
 
 // ===== OVERVIEW UPDATES =====
-function updateOverview(){
+async function updateOverview(){
   updateOverviewPriorities();
   updateOverviewMeetings();
   updateOverviewChats();
   updateOverviewMemory();
+  // Dynamically fetch latest decisions and insights for overview
+  try{
+    const decisions=await apiGet('/api/decisions').catch(()=>([]));
+    const decList=Array.isArray(decisions)?decisions:(decisions.decisions||[]);
+    if(decList.length){
+      // Merge decisions into memories view
+      const decMems=decList.map(d=>({id:d.id,text:d.text,tag:'decision',time:d.time||''}));
+      const nonDec=memories.filter(m=>m.tag!=='decision');
+      memories=[...decMems,...nonDec];
+      updateOverviewMemory();
+    }
+  }catch(e){}
+  try{
+    const insights=await apiGet('/api/insights').catch(()=>null);
+    if(insights){
+      // Update Founder Metrics bar if elements exist
+      const prEl=document.getElementById('metricPriorities');
+      const mtEl=document.getElementById('metricMeetings');
+      const tdEl=document.getElementById('metricTasksDue');
+      const inEl=document.getElementById('metricInsights');
+      if(prEl&&insights.priorities!==undefined)prEl.textContent=insights.priorities+' PRIORITIES';
+      if(mtEl&&insights.meetings!==undefined)mtEl.textContent=insights.meetings+' MEETINGS';
+      if(tdEl&&insights.tasks_due!==undefined)tdEl.textContent=insights.tasks_due+' TASKS DUE';
+      if(inEl&&insights.insights!==undefined)inEl.textContent=insights.insights+' INSIGHT';
+    }
+  }catch(e){}
 }
 
 function updateOverviewPriorities(){
@@ -1240,17 +1532,31 @@ function switchAuthTab(mode) {
   }
 }
 
-async function checkAuthStatus() {
+async function checkAuthState() {
   try {
-    const resp = await fetch('/api/me', { credentials: 'include' });
+    const resp = await fetch(API_BASE + '/api/me', { credentials: 'include' });
     const data = await resp.json();
     if (data.authenticated) {
       document.getElementById('authModalOverlay').style.display = 'none';
+      updateProfileUI(data.username);
+      loadAll();
+      return true;
     } else {
       document.getElementById('authModalOverlay').style.display = 'flex';
+      return false;
     }
   } catch (err) {
     document.getElementById('authModalOverlay').style.display = 'flex';
+    return false;
+  }
+}
+
+async function handleLogout() {
+  try {
+    await fetch(API_BASE + '/api/logout', { method: 'POST', credentials: 'include' });
+    checkAuthState();
+  } catch (e) {
+    checkAuthState();
   }
 }
 
@@ -1275,7 +1581,7 @@ async function quickDemoLogin() {
       data = await resp.json();
     }
     if (data.authenticated || data.status === 'registered' || data.status === 'logged_in') {
-      document.getElementById('authModalOverlay').style.display = 'none';
+      await checkAuthState();
       if (typeof showPage === 'function') {
         const chatNav = document.querySelectorAll('.nav-item')[1];
         if (chatNav) showPage('chat', chatNav);
@@ -1325,7 +1631,7 @@ async function handleAuthSubmit(e) {
       errBox.textContent = resData.error || 'Authentication failed';
       errBox.style.display = 'block';
     } else {
-      document.getElementById('authModalOverlay').style.display = 'none';
+      await checkAuthState();
       if (typeof showPage === 'function') {
         const chatNav = document.querySelectorAll('.nav-item')[1];
         if (chatNav) showPage('chat', chatNav);
@@ -1340,7 +1646,42 @@ async function handleAuthSubmit(e) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', checkAuthStatus);
+document.addEventListener('DOMContentLoaded', function(){
+  checkAuthState();
+
+  // ===== FIX CHAT RELOAD BUG =====
+  // Attach Enter keydown listener ONCE here — never inside loadAll() or loops
+  const userInput=document.getElementById('userInput');
+  if(userInput){
+    userInput.addEventListener('keydown',function(e){
+      if(e.key==='Enter'&&!e.shiftKey){
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+  }
+
+  // ===== BIND #usernameInput to localStorage & greeting =====
+  const usernameInput=document.getElementById('usernameInput');
+  if(usernameInput){
+    // Restore saved username
+    const saved=localStorage.getItem('username');
+    if(saved){usernameInput.value=saved;updateProfileName(saved);}
+    usernameInput.addEventListener('input',function(){
+      updateProfileName(this.value);
+    });
+  }
+});
+
+function updateProfileName(name){
+  if(!name||!name.trim())return;
+  const n=name.trim();
+  localStorage.setItem('username',n);
+  const greetEl=document.getElementById('overview-user-name');
+  if(greetEl)greetEl.textContent=n;
+  const profEl=document.getElementById('profileName');
+  if(profEl)profEl.textContent=n;
+}
 </script>
 </body>
 </html>

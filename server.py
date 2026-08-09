@@ -585,6 +585,7 @@ def chat():
         "rationale": f"Routed to {result.get('model_alias','')}: {'Fast model -- operational' if result.get('is_fast_model') else 'Heavy model -- complex analysis'}",
         "memory_recalled": memory_recalled,
         "recalled_count": recalled_count,
+        "memory_content": long_term,
     }
 
     return jsonify({"response": reply, "memory_saved": should_save, "memory_recalled": memory_recalled, "recalled_count": recalled_count, "tokens": result["tokens"], "cost_usd": result["cost_usd"], "cost_saved_usd": result.get("cost_saved_usd", 0.0), "latency_ms": result["latency_ms"], "model_used": result["model_used"], "model_alias": result.get("model_alias",""), "is_fast_model": result.get("is_fast_model", False), "cascaded": result["cascaded"], "telemetry": telemetry, "session_id": chat_session_id})
@@ -679,12 +680,50 @@ def get_chat_history():
 
 
 @app.route("/reset", methods=["POST"])
-@login_required
+@app.route("/api/reset", methods=["POST"])
 def reset_session():
     global conversation_history
     conversation_history = []
     log_audit("Session reset -- conversation history cleared")
     return jsonify({"status": "Session cleared. Long-term memories preserved."})
+
+
+@app.route("/api/decisions", methods=["GET"])
+def get_decisions():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, text, tag, saved_at FROM memories WHERE tag = 'decision' ORDER BY saved_at DESC")
+        rows = [dict(r) for r in c.fetchall()]
+    return jsonify(rows)
+
+
+@app.route("/api/decisions", methods=["POST"])
+def add_decision():
+    data = get_json_body()
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Decision text required"}), 400
+    mem_id = str(uuid.uuid4())
+    saved_at = now_str()
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO memories (id, text, tag, saved_at) VALUES (?, ?, 'decision', ?)", (mem_id, text, saved_at))
+        conn.commit()
+    log_audit(f"Decision logged -- {text[:40]}")
+    return jsonify({"id": mem_id, "text": text, "tag": "decision", "saved_at": saved_at}), 201
+
+
+@app.route("/api/insights", methods=["GET"])
+def get_insights():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        t_count = c.execute("SELECT COUNT(*) FROM tasks WHERE done = 0").fetchone()[0]
+        m_count = c.execute("SELECT COUNT(*) FROM meetings").fetchone()[0]
+        d_count = c.execute("SELECT COUNT(*) FROM memories WHERE tag = 'decision'").fetchone()[0]
+    return jsonify([
+        {"id": "ins-1", "title": "Priority Velocity", "detail": f"{t_count} open tasks pending review."},
+        {"id": "ins-2", "title": "Strategic Alignment", "detail": f"{d_count} key decisions recorded in memory bank."},
+        {"id": "ins-3", "title": "Calendar Load", "detail": f"{m_count} upcoming meetings scheduled."}
+    ])
 
 
 @app.route("/tasks", methods=["GET"])
@@ -975,8 +1014,10 @@ def get_analytics():
 
 
 @app.route("/settings", methods=["GET"])
+@app.route("/api/model", methods=["GET"])
 def get_settings():
     return jsonify({
+        "model": "groq/llama-3.3-70b-versatile",
         "models": {"low_cost": "groq/llama-3.1-8b-instant", "high_capacity": "groq/llama-3.3-70b-versatile"},
         "max_tokens": 600, "temperature": 0.1,
         "stack": {
@@ -1057,6 +1098,153 @@ def health():
         docs_count = c.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         mems_count = c.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
     return jsonify({"status": "ok", "models": {"low_cost": "groq/llama-3.1-8b-instant", "high_capacity": "groq/llama-3.3-70b-versatile"}, "groq": "connected" if GROQ_API_KEY else "missing-key", "hindsight_sdk": "connected" if HINDSIGHT_API_KEY else "missing-key", "cascadeflow": "connected" if GROQ_API_KEY else "missing-key", "database": "sqlite3", "session_messages": len(conversation_history), "tasks": tasks_count, "meetings": meetings_count, "documents": docs_count, "memories": mems_count})
+
+# ══════════════════════════════════════════════════════════
+# EXECUTIVE STATE ENDPOINTS (Pass 3 & 4)
+# ══════════════════════════════════════════════════════════
+
+@app.route("/api/priorities", methods=["GET"])
+@login_required
+def get_api_priorities():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, text, priority, done, created_at FROM tasks WHERE done = 0 ORDER BY created_at DESC")
+        tasks = [{"id": r["id"], "text": r["text"], "priority": r["priority"], "done": bool(r["done"]), "created_at": r["created_at"]} for r in c.fetchall()]
+    return jsonify(tasks)
+
+@app.route("/api/priorities", methods=["POST"])
+@login_required
+def post_api_priorities():
+    data = get_json_body()
+    text = (data.get("text") or "").strip()
+    if not text: return jsonify({"error": "Text required"}), 400
+    task_id = str(uuid.uuid4())
+    priority = data.get("priority", "med")
+    created_at = now_iso()
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO tasks (id, text, priority, done, created_at) VALUES (?, ?, ?, 0, ?)", (task_id, text, priority, created_at))
+        conn.commit()
+    return jsonify({"id": task_id, "text": text, "priority": priority, "done": False, "created_at": created_at}), 201
+
+@app.route("/api/schedule", methods=["GET"])
+@login_required
+def get_api_schedule():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, title, date, time, with_, created_at FROM meetings ORDER BY created_at DESC LIMIT 5")
+        meetings = [dict(r) for r in c.fetchall()]
+    return jsonify(meetings)
+
+@app.route("/api/schedule", methods=["POST"])
+@login_required
+def post_api_schedule():
+    data = get_json_body()
+    title = (data.get("title") or "").strip()
+    if not title: return jsonify({"error": "Title required"}), 400
+    meeting_id = str(uuid.uuid4())
+    date = data.get("date", "")
+    time_val = data.get("time", "")
+    with_ = data.get("with_", "")
+    created_at = now_iso()
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO meetings (id, title, date, time, with_, created_at) VALUES (?, ?, ?, ?, ?, ?)", (meeting_id, title, date, time_val, with_, created_at))
+        conn.commit()
+    return jsonify({"id": meeting_id, "title": title, "date": date, "time": time_val, "with_": with_, "created_at": created_at}), 201
+
+@app.route("/api/decisions", methods=["GET"])
+@login_required
+def get_api_decisions():
+    user_id = session["user_id"]
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, text, tag, saved_at FROM memories WHERE user_id = ? AND tag = 'decision' ORDER BY saved_at DESC LIMIT 5", (user_id,))
+        mems = [dict(r) for r in c.fetchall()]
+    return jsonify(mems)
+
+@app.route("/api/decisions", methods=["POST"])
+@login_required
+def post_api_decisions():
+    data = get_json_body()
+    text = (data.get("text") or "").strip()
+    if not text: return jsonify({"error": "Text required"}), 400
+    user_id = session["user_id"]
+    mem_id = str(uuid.uuid4())
+    saved_at = now_str()
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO memories (id, text, tag, saved_at, user_id) VALUES (?, ?, 'decision', ?, ?)", (mem_id, text, saved_at, user_id))
+        conn.commit()
+    save_memory_hindsight(f"[{saved_at}] DECISION:\n{text}")
+    return jsonify({"id": mem_id, "text": text, "tag": "decision", "saved_at": saved_at}), 201
+
+@app.route("/api/insights", methods=["GET"])
+@login_required
+def get_api_insights():
+    return jsonify([
+        {"type": "observation", "text": "You've been focused on fundraising tasks this week."},
+        {"type": "suggestion", "text": "Consider preparing a pitch deck update for the upcoming investor sync."}
+    ])
+
+# New endpoint for generated insights with metrics
+@app.route("/api/insights/generate", methods=["GET"])
+@login_required
+def generate_insights():
+    # Compute metrics
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        # distinct priorities count
+        c.execute("SELECT COUNT(DISTINCT priority) FROM tasks")
+        pri_count = c.fetchone()[0]
+        # total meetings count
+        c.execute("SELECT COUNT(*) FROM meetings")
+        meet_count = c.fetchone()[0]
+        # pending tasks count (tasks not done)
+        c.execute("SELECT COUNT(*) FROM tasks WHERE done = 0")
+        tasks_due = c.fetchone()[0]
+    # Get existing insights
+    insights = get_api_insights().get_json()
+    metrics = {
+        "priorities": pri_count,
+        "meetings": meet_count,
+        "tasks_due": tasks_due,
+        "insights": len(insights)
+    }
+    return jsonify({"metrics": metrics, "insights": insights})
+
+@app.route("/api/model", methods=["GET"])
+@login_required
+def get_api_model():
+    return jsonify({"model": "llama-3.3-70b-versatile", "provider": "Groq", "alias": "Groq Llama 3.3"})
+
+@app.route("/api/reset", methods=["POST"])
+@login_required
+def api_reset():
+    user_id = session["user_id"]
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM tasks")
+        conn.execute("DELETE FROM meetings")
+        conn.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM chat_messages WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM chat_sessions WHERE user_id = ?", (user_id,))
+        conn.commit()
+    global conversation_history
+    conversation_history = []
+    session.pop("chat_session_id", None)
+    return jsonify({"status": "reset complete"})
+
+@app.route("/api/user", methods=["PUT"])
+@login_required
+def update_api_user():
+    data = get_json_body()
+    username = (data.get("username") or "").strip()
+    if username:
+        user_id = session["user_id"]
+        with get_db_connection() as conn:
+            conn.execute("UPDATE users SET username = ? WHERE id = ?", (username, user_id))
+            conn.commit()
+        session["username"] = username
+        session.modified = True
+        return jsonify({"status": "updated", "username": username})
+    return jsonify({"error": "Username required"}), 400
 
 
 if __name__ == "__main__":

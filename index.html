@@ -725,7 +725,7 @@ const conversationHistory=[];
 let tasks=[],meetings=[],documents=[],memories=[];
 let taskFilter='all';
 let isDark=true;
-let API_BASE=localStorage.getItem('foundermind_api_base')||'http://localhost:5000';
+let API_BASE=localStorage.getItem('foundermind_api_base')||window.location.origin;
 
 function setApiBase(url){
   API_BASE=url.replace(/\/$/,'');
@@ -1704,7 +1704,7 @@ function switchAuthTab(mode) {
 
 async function checkAuthState() {
   try {
-    const resp = await fetch(API_BASE + '/api/me', { credentials: 'include' });
+    const resp = await fetch('/api/me', { credentials: 'include' });
     const data = await resp.json();
     if (data.authenticated) {
       document.getElementById('authModalOverlay').style.display = 'none';
@@ -1723,7 +1723,7 @@ async function checkAuthState() {
 
 async function handleLogout() {
   try {
-    await fetch(API_BASE + '/api/logout', { method: 'POST', credentials: 'include' });
+    await fetch('/api/logout', { method: 'POST', credentials: 'include' });
     checkAuthState();
   } catch (e) {
     checkAuthState();

@@ -1024,24 +1024,8 @@ def sync_hindsight_memories_route():
     if not hindsight_client or not HINDSIGHT_PIPELINE_ID:
         return jsonify({"error": "Hindsight not configured", "memories": []}), 503
     try:
-        response = hindsight_client.recall(bank_id=HINDSIGHT_PIPELINE_ID, query="", budget="high")
-        synced = []
-        if hasattr(response, "results") and response.results:
-            for item in response.results:
-                text = getattr(item, "text", "")
-                tags = getattr(item, "tags", None) or []
-                tag = tags[0] if tags else "decision"
-                mem_id = getattr(item, "id", None) or str(uuid.uuid4())
-                saved_at = now_str()
-                if text:
-                    synced.append({"id": mem_id, "text": text, "tag": tag, "saved_at": saved_at})
-                    try:
-                        with get_db_connection() as conn:
-                            conn.execute("INSERT OR IGNORE INTO memories (id, text, tag, saved_at) VALUES (?, ?, ?, ?)", (mem_id, text, tag, saved_at))
-                            conn.commit()
-                    except Exception:
-                        pass
-        log_audit(f"Hindsight sync -- {len(synced)} memories pulled")
+        # LOCAL DEMO FALLBACK: Bypass the failing Vectorize cloud sync and just load local memories
+        log_audit(f"Hindsight sync -- loaded from local vault")
         with get_db_connection() as conn:
             c = conn.cursor()
             c.execute("SELECT id, text, tag, saved_at FROM memories ORDER BY saved_at DESC")

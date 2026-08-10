@@ -1818,7 +1818,7 @@ async function updateAnalytics(){
               <div class="audit-header-row">
                 <div style="display:flex;align-items:center;gap:8px;">
                   <span class="audit-model-tag ${tagClass}">${modelLabel}</span>
-                  <span style="font-size:0.7rem;color:var(--muted);font-family:monospace;">${ev.time||'Just now'}</span>
+                  <span style="font-size:0.7rem;color:var(--muted);font-family:monospace;">${ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : 'Just now'}</span>
                 </div>
                 <div class="audit-meta-group">
                   ${latencyStr ? `<span>${latencyStr}</span>` : ''}

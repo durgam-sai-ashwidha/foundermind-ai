@@ -84,7 +84,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .session-item.active-session{background:var(--glow);border-left-color:var(--gold2);}
 .session-title{font-size:0.74rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;}
 .session-time{font-size:0.6rem;color:var(--muted);font-family:monospace;}
-
+.session-actions{display:none; gap:6px; margin-top:4px;}
+.session-item:hover .session-actions{display:flex;}
+.session-action-btn{background:none; border:none; color:var(--muted); font-size:0.65rem; cursor:pointer; font-family:inherit;}
+.session-action-btn:hover{color:var(--gold2);}
+.session-action-btn.del:hover{color:#ef4444;}
 /* DARK/LIGHT TOGGLE in sidebar */
 .theme-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;font-size:0.8rem;color:var(--muted);}
 .toggle-switch{width:36px;height:20px;background:var(--border);border-radius:10px;position:relative;cursor:pointer;transition:background 0.2s;}
@@ -1057,7 +1061,13 @@ async function loadSessions(skipMessageReload = false){
       return `
         <div class="session-item ${activeClass}" id="session-item-${s.id}" onclick="loadSession('${s.id}', true)">
           <div class="session-title" title="${safeTitle}">${safeTitle}</div>
-          <div class="session-time">${s.created_at || ''}</div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="session-time">${s.created_at || ''}</div>
+            <div class="session-actions">
+              <button class="session-action-btn" onclick="event.stopPropagation(); renameSession('${s.id}', '${safeTitle.replace(/'/g, "\\'")}')">Edit</button>
+              <button class="session-action-btn del" onclick="event.stopPropagation(); deleteSession('${s.id}')">Del</button>
+            </div>
+          </div>
         </div>
       `;
     }).join('');
@@ -1106,6 +1116,39 @@ async function loadSession(sessionId, forceReloadMessages = true){
     }
   }catch(e){
     console.error('Failed to load session messages:', e);
+  }
+}
+
+async function renameSession(sessionId, oldTitle) {
+  const newTitle = prompt('Enter new name for this chat:', oldTitle);
+  if (!newTitle || newTitle.trim() === '' || newTitle === oldTitle) return;
+  try {
+    const res = await apiPatch(`/chat/sessions/${sessionId}`, {title: newTitle.trim()});
+    if (res && res.status === 'renamed') {
+      await loadSessions(true); // reload list but skip message reload
+    }
+  } catch (e) {
+    showToast('Failed to rename session', 'error');
+  }
+}
+
+async function deleteSession(sessionId) {
+  if (!confirm('Are you sure you want to delete this chat session?')) return;
+  try {
+    const res = await apiDelete(`/chat/sessions/${sessionId}`);
+    if (res && res.status === 'deleted') {
+      if (currentSessionId === sessionId) {
+        currentSessionId = null;
+        localStorage.removeItem('active_chat_session_id');
+        document.getElementById('messages').innerHTML = '';
+        const wc = document.getElementById('welcomeCard');
+        if(wc) wc.classList.remove('hidden');
+        welcomeHidden = false;
+      }
+      await loadSessions(currentSessionId !== null);
+    }
+  } catch (e) {
+    showToast('Failed to delete session', 'error');
   }
 }
 

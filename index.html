@@ -1499,6 +1499,10 @@ async function sendMessage(){
                 currentSessionId = parsed.session_id;
                 localStorage.setItem('active_chat_session_id', parsed.session_id);
               }
+              if (parsed.updated_user) {
+                updateProfileName(parsed.updated_user.name);
+                showToast("Profile name updated to " + parsed.updated_user.name, "success", "👤");
+              }
             } catch (e) {}
           }
         }
@@ -1516,6 +1520,10 @@ async function sendMessage(){
     } else {
       const data = await response.json();
       removeThinking();
+      if (data.updated_user) {
+        updateProfileName(data.updated_user.name);
+        showToast("Profile name updated to " + data.updated_user.name, "success", "👤");
+      }
       const reply = data.response || data.reply || 'Sorry, something went wrong.';
       conversationHistory.push({ role: 'assistant', content: reply });
       addMessage('ai', reply, data.memory_saved, data.telemetry || null);
@@ -2491,6 +2499,8 @@ function updateProfileName(name){
   if(greetEl)greetEl.textContent=n;
   const profEl=document.getElementById('profileName');
   if(profEl)profEl.textContent=n;
+  const avatarEl=document.getElementById('profileAvatar');
+  if(avatarEl)avatarEl.textContent=n.charAt(0).toUpperCase();
 }
 
 function showToast(message,type='info',icon='ℹ️',duration=4000){

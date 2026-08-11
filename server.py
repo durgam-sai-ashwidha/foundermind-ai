@@ -12,6 +12,7 @@ from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory, session, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
+import threading
 
 import asyncio
 
@@ -138,8 +139,10 @@ def init_db():
         except Exception:
             pass  # Column already exists
         # Pre-seed default demo user 'founder' if not present
-        pw_hash = hash_password("founder123")
-        c.execute("INSERT OR IGNORE INTO users (username, email, password_hash) VALUES (?, ?, ?)", ("founder", "founder@startup.com", pw_hash))
+        c.execute("SELECT id FROM users WHERE LOWER(email) = 'founder@startup.com'")
+        if not c.fetchone():
+            pw_hash = hash_password("founder123")
+            c.execute("INSERT OR IGNORE INTO users (username, email, password_hash) VALUES (?, ?, ?)", ("founder", "founder@startup.com", pw_hash))
         conn.commit()
 
 init_db()
@@ -198,7 +201,7 @@ def save_memory_hindsight(content):
     async def _async_retain():
         client = Hindsight(base_url=HINDSIGHT_BASE_URL, api_key=HINDSIGHT_API_KEY)
         try:
-            return await client.aretain(bank_id=HINDSIGHT_PIPELINE_ID, content=content)
+            return await asyncio.wait_for(client.aretain(bank_id=HINDSIGHT_PIPELINE_ID, content=content), timeout=5.0)
         finally:
             await client.aclose()
     try:
@@ -252,7 +255,9 @@ def classify_intent(message):
         return "complex"
     return "simple"
 
-def ask_cascadeflow(user_message, long_term_memories="", current_user="Founder"):
+def ask_cascadeflow(user_message, long_term_memories="", current_user="Founder", history_messages=None):
+    if history_messages is None:
+        history_messages = []
     global conversation_history
     if cascade_agent is None and groq_client is None:
         log_audit("Cascadeflow call skipped -- no API key")
@@ -272,6 +277,7 @@ def ask_cascadeflow(user_message, long_term_memories="", current_user="Founder")
     if complexity_hint == "simple":
         task_ctx = ""
         meeting_ctx = ""
+
     else:
         task_ctx = ("\n\nOPEN TASKS:\n" + "\n".join(f"- [{t['priority'].upper()}] {t['text']}" for t in open_tasks)) if open_tasks else ""
         meeting_ctx = ("\n\nUPCOMING MEETINGS:\n" + "\n".join(f"- {m['title']} on {m['date'] or 'TBD'} at {m['time'] or 'TBD'} with {m['with_'] or '--'}" for m in upcoming_meetings)) if upcoming_meetings else ""
@@ -293,8 +299,8 @@ YOUR RULES:
 - When asked about tasks or meetings, reference the live data above."""
 
     history_str = ""
-    if conversation_history:
-        history_str = "\nRecent Conversation:\n" + "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in conversation_history[-6:])
+    if history_messages:
+        history_str = "\nRecent Conversation:\n" + "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in history_messages[-6:])
 
     full_query = f"{system_prompt}\n{history_str}\n\nUser: {user_message}"
 
@@ -307,9 +313,11 @@ YOUR RULES:
 
         if groq_client:
             try:
+                msgs = [{"role": "system", "content": system_prompt}] + history_messages + [{"role": "user", "content": user_message}]
+                print(f"[DEBUG] MSGS: {history_messages}")
                 groq_resp = groq_client.chat.completions.create(
                     model="llama-3.1-8b-instant",
-                    messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
+                    messages=msgs,
                     max_tokens=300,
                     temperature=0.2,
                 )
@@ -532,6 +540,22 @@ def chat():
     current_user = session.get("username") or (data.get("username") if isinstance(data, dict) else None) or "Founder"
     user_id = session.get("user_id")
 
+    import re
+    updated_user_payload = None
+    name_change_match = re.search(r"(?:change my name to|call me|my name is (?:now)?)\s+([A-Za-z0-9_]+)", user_message, re.IGNORECASE)
+    if name_change_match and user_id:
+        new_name = name_change_match.group(1).strip()
+        try:
+            with get_db_connection() as conn:
+                conn.execute("UPDATE users SET username = ? WHERE id = ?", (new_name, user_id))
+                conn.commit()
+            session["username"] = new_name
+            session.modified = True
+            current_user = new_name
+            updated_user_payload = {"name": new_name}
+        except Exception as e:
+            print(f"[DB Name Update Error]: {e}")
+
     # --- Auto-create or reuse chat session ---
     req_session_id = data.get("session_id") if isinstance(data, dict) else None
     if req_session_id:
@@ -558,34 +582,35 @@ def chat():
 
     print(f"\n[{current_user}]: {user_message}")
 
+    history_messages = []
+    if chat_session_id:
+        try:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                c.execute("SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY timestamp ASC", (chat_session_id,))
+                for row in c.fetchall():
+                    history_messages.append({"role": row["role"], "content": row["message"]})
+            if len(history_messages) > 10:
+                history_messages = history_messages[-10:]
+        except Exception as e:
+            print(f"[DB History Fetch Error]: {e}")
+
     is_stream = data.get("stream") is True or request.headers.get("Accept") == "text/event-stream" or request.args.get("stream") == "true"
 
     if is_stream and groq_client:
         long_term = recall_memories_hindsight(user_message)
+        system_prompt = f"You are FounderMind, an AI Chief of Staff and Founder Operating System. Deliver direct, practical, clear responses. Match response length to query scope. User is {current_user}."
+        if long_term:
+            system_prompt += f"\n\n[Relevant Long-Term Memory / Context:\n{long_term}]"
         
-        # Fetch conversation history from DB
-        history_msgs = []
-        try:
-            with get_db_connection() as conn:
-                c = conn.cursor()
-                c.execute("SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT 6", (chat_session_id,))
-                for row in reversed(c.fetchall()):
-                    history_msgs.append({"role": row["role"], "content": row["message"]})
-        except Exception as e:
-            print(f"[History fetch error]: {e}")
-            
-        mem_text = long_term[:3000] if long_term else "No past session memories yet."
-        system_prompt = f"You are FounderMind, an AI Chief of Staff. User is {current_user}.\n\nMEMORY:\n{mem_text}"
-        
-        messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(history_msgs)
-        messages.append({"role": "user", "content": user_message})
+        msgs = [{"role": "system", "content": system_prompt}] + history_messages + [{"role": "user", "content": user_message}]
 
         def generate_stream():
             try:
+                msgs = [{"role": "system", "content": system_prompt}] + history_messages + [{"role": "user", "content": user_message}]
                 stream_resp = groq_client.chat.completions.create(
                     model="llama-3.1-8b-instant",
-                    messages=messages,
+                    messages=msgs,
                     max_tokens=300,
                     temperature=0.2,
                     stream=True
@@ -610,7 +635,10 @@ def chat():
                     print(f"[DB Chat Insert Error]: {dbe}")
 
                 log_audit(f"Groq Direct Streaming (8b) ({tokens} tokens)", model_used="llama-3.1-8b-instant", model_alias="8B Fast Model", rationale="Instant streaming tokens", cost_usd=0.0001, is_fast_model=True)
-                yield f"data: {json.dumps({'done': True, 'session_id': chat_session_id})}\n\n"
+                resp_done = {'done': True, 'session_id': chat_session_id}
+                if updated_user_payload:
+                    resp_done['updated_user'] = updated_user_payload
+                yield f"data: {json.dumps(resp_done)}\n\n"
             except Exception as e:
                 print(f"[Streaming Error]: {e}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -618,7 +646,7 @@ def chat():
         return Response(generate_stream(), mimetype="text/event-stream")
 
     long_term = recall_memories_hindsight(user_message)
-    result = ask_cascadeflow(user_message, long_term, current_user=current_user)
+    result = ask_cascadeflow(user_message, long_term, current_user=current_user, history_messages=history_messages)
     reply, had_error = result["reply"], result["error"]
     print(f"[FounderMind]: {reply[:120]}...")
 
@@ -678,7 +706,11 @@ def chat():
         "memory_content": long_term,
     }
 
-    return jsonify({"response": reply, "memory_saved": should_save, "memory_recalled": memory_recalled, "recalled_count": recalled_count, "tokens": result["tokens"], "cost_usd": result["cost_usd"], "cost_saved_usd": result.get("cost_saved_usd", 0.0), "latency_ms": result["latency_ms"], "model_used": result["model_used"], "model_alias": result.get("model_alias",""), "is_fast_model": result.get("is_fast_model", False), "cascaded": result["cascaded"], "telemetry": telemetry, "session_id": chat_session_id})
+    resp_data = {"response": reply, "memory_saved": should_save, "memory_recalled": memory_recalled, "recalled_count": recalled_count, "tokens": result["tokens"], "cost_usd": result["cost_usd"], "cost_saved_usd": result.get("cost_saved_usd", 0.0), "latency_ms": result["latency_ms"], "model_used": result["model_used"], "model_alias": result.get("model_alias",""), "is_fast_model": result.get("is_fast_model", False), "cascaded": result["cascaded"], "telemetry": telemetry, "session_id": chat_session_id}
+    if updated_user_payload:
+        resp_data["updated_user"] = updated_user_payload
+
+    return jsonify(resp_data)
 
 
 @app.route("/chat/sessions", methods=["GET"])

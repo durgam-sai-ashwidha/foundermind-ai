@@ -228,9 +228,9 @@ def recall_memories_hindsight(query):
             return await asyncio.wait_for(client.arecall(bank_id=HINDSIGHT_PIPELINE_ID, query=query), timeout=1.5)
         finally:
             await client.aclose()
+    mems = []
     try:
         response = run_async(_async_recall)
-        mems = []
         if hasattr(response, 'results') and response.results:
             for item in response.results[:3]: # Cap to top 3 relevant records
                 text = getattr(item, 'text', '') or (item.get('text') if isinstance(item, dict) else '')
@@ -240,10 +240,31 @@ def recall_memories_hindsight(query):
             log_audit(f"Memory recall -- {len(mems)} memories retrieved")
             analytics_store["routing"]["hindsight_recall"] += 1
             return "\n---\n".join(mems)
-        return ""
     except Exception as e:
         print(f"[Hindsight Recall Error/Timeout]: {e}")
-        return ""
+
+    # Fallback to local SQLite search if Hindsight returns empty or errored
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            keywords = [w for w in query.lower().split() if len(w) > 3 and w not in {"what", "when", "where", "which", "who", "why", "how", "this", "that", "there"}]
+            if keywords:
+                query_parts = " OR ".join(["message LIKE ?" for _ in keywords])
+                params = [f"%{k}%" for k in keywords]
+                c.execute(f"SELECT role, message, timestamp FROM chat_messages WHERE {query_parts} ORDER BY timestamp DESC LIMIT 10", params)
+                matches = c.fetchall()
+                if matches:
+                    fallback_mems = []
+                    for m in matches:
+                        if "I don't have any" not in m["message"]:
+                            fallback_mems.append(f"[{m['timestamp']}] {m['role'].upper()}: {m['message']}")
+                    if fallback_mems:
+                        log_audit(f"Local fallback memory recall -- {len(fallback_mems)} found")
+                        return "[Past Chats]\n" + "\n---\n".join(fallback_mems)
+    except Exception as local_e:
+        print(f"Local memory search error: {local_e}")
+        
+    return ""
 
 def classify_intent(message):
     low_msg = message.lower().strip()
@@ -599,11 +620,19 @@ def chat():
 
     if is_stream and groq_client:
         long_term = recall_memories_hindsight(user_message)
-        system_prompt = f"You are FounderMind, an AI Chief of Staff and Founder Operating System. Deliver direct, practical, clear responses. Match response length to query scope. User is {current_user}."
-        if long_term:
-            system_prompt += f"\n\n[Relevant Long-Term Memory / Context:\n{long_term}]"
+        mem_text = long_term[:3000] if long_term else "No past session memories yet."
+        system_prompt = (
+            f"You are FounderMind, an AI Chief of Staff. User is {current_user}.\n\n"
+            f"CRITICAL RULES:\n"
+            f"1. You MUST NOT hallucinate or invent any meetings, tasks, or schedules.\n"
+            f"2. If the user asks about their schedule or meetings, ONLY use the context provided in the MEMORY below or the chat history.\n"
+            f"3. If the information is not in the MEMORY or history, simply say 'I don't have any meetings or schedule information in my memory right now.'\n\n"
+            f"MEMORY:\n{mem_text}"
+        )
         
-        msgs = [{"role": "system", "content": system_prompt}] + history_messages + [{"role": "user", "content": user_message}]
+        msgs = [{"role": "system", "content": system_prompt}]
+        msgs.extend(history_messages)
+        msgs.append({"role": "user", "content": user_message})
 
         def generate_stream():
             try:
@@ -633,6 +662,14 @@ def chat():
                         conn.commit()
                 except Exception as dbe:
                     print(f"[DB Chat Insert Error]: {dbe}")
+
+                skip_words = {"hi","hello","hey","ok","okay","thanks","bye","yo"}
+                if user_message.lower().strip() not in skip_words:
+                    try:
+                        threading.Thread(target=save_memory_hindsight, args=(f"[{ts}]\nFounder: {user_message}\nFounderMind: {full_reply}",), daemon=True).start()
+                    except Exception as e:
+                        print(f"[Hindsight Save Error - Non-fatal]: {e}")
+
 
                 log_audit(f"Groq Direct Streaming (8b) ({tokens} tokens)", model_used="llama-3.1-8b-instant", model_alias="8B Fast Model", rationale="Instant streaming tokens", cost_usd=0.0001, is_fast_model=True)
                 resp_done = {'done': True, 'session_id': chat_session_id}
@@ -757,6 +794,34 @@ def get_session_messages(session_id):
     except Exception as e:
         print(f"[Session Messages Fetch Error]: {e}")
         return jsonify({"status": "error", "messages": []}), 200
+
+
+@app.route("/chat/sessions/<session_id>", methods=["PATCH"])
+@login_required
+def rename_chat_session(session_id):
+    data = request.json
+    title = data.get("title")
+    if not title:
+        return jsonify({"error": "Title required"}), 400
+    try:
+        with get_db_connection() as conn:
+            conn.execute("UPDATE chat_sessions SET title = ? WHERE id = ? AND user_id = ?", (title, session_id, session["user_id"]))
+            conn.commit()
+        return jsonify({"status": "renamed", "id": session_id, "title": title})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/chat/sessions/<session_id>", methods=["DELETE"])
+@login_required
+def delete_chat_session(session_id):
+    try:
+        with get_db_connection() as conn:
+            conn.execute("DELETE FROM chat_messages WHERE session_id = ? AND user_id = ?", (session_id, session["user_id"]))
+            conn.execute("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, session["user_id"]))
+            conn.commit()
+        return jsonify({"status": "deleted", "id": session_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/chat/history", methods=["GET"])

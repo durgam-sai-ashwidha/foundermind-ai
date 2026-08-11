@@ -195,13 +195,13 @@ def log_audit(event, model_used="", model_alias="", rationale="", cost_usd=0.0, 
     except Exception as e:
         print(f"[Audit Log DB Error]: {e}")
 
-def save_memory_hindsight(content):
+def save_memory_hindsight(content, user_id):
     if not HINDSIGHT_API_KEY or not HINDSIGHT_PIPELINE_ID:
         return False
     async def _async_retain():
         client = Hindsight(base_url=HINDSIGHT_BASE_URL, api_key=HINDSIGHT_API_KEY)
         try:
-            return await asyncio.wait_for(client.aretain(bank_id=HINDSIGHT_PIPELINE_ID, content=content), timeout=5.0)
+            return await asyncio.wait_for(client.aretain(bank_id=HINDSIGHT_PIPELINE_ID, content=content, tags=[f"user_id:{user_id}"]), timeout=5.0)
         finally:
             await client.aclose()
     try:
@@ -213,7 +213,7 @@ def save_memory_hindsight(content):
         print(f"[Hindsight Save Error]: {e}")
         return False
 
-def recall_memories_hindsight(query):
+def recall_memories_hindsight(query, user_id):
     # LOCAL FALLBACK FOR DEMO: Guarantee the Sequoia memory works instantly
     if "sequoia" in query.lower() or "pricing" in query.lower():
         log_audit(f"Memory recall -- 1 memories retrieved")
@@ -225,7 +225,7 @@ def recall_memories_hindsight(query):
     async def _async_recall():
         client = Hindsight(base_url=HINDSIGHT_BASE_URL, api_key=HINDSIGHT_API_KEY)
         try:
-            return await asyncio.wait_for(client.arecall(bank_id=HINDSIGHT_PIPELINE_ID, query=query), timeout=1.5)
+            return await asyncio.wait_for(client.arecall(bank_id=HINDSIGHT_PIPELINE_ID, query=query, tags=[f"user_id:{user_id}"]), timeout=1.5)
         finally:
             await client.aclose()
     try:
@@ -598,7 +598,7 @@ def chat():
     is_stream = data.get("stream") is True or request.headers.get("Accept") == "text/event-stream" or request.args.get("stream") == "true"
 
     if is_stream and groq_client:
-        long_term = recall_memories_hindsight(user_message)
+        long_term = recall_memories_hindsight(user_message, user_id)
         system_prompt = f"You are FounderMind, an AI Chief of Staff and Founder Operating System. Deliver direct, practical, clear responses. Match response length to query scope. User is {current_user}."
         if long_term:
             system_prompt += f"\n\n[Relevant Long-Term Memory / Context:\n{long_term}]"
@@ -634,6 +634,14 @@ def chat():
                 except Exception as dbe:
                     print(f"[DB Chat Insert Error]: {dbe}")
 
+                skip_words = {"hi","hello","hey","ok","okay","thanks","bye","yo"}
+                if user_message.lower().strip() not in skip_words:
+                    try:
+                        threading.Thread(target=save_memory_hindsight, args=(f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {full_reply}", user_id), daemon=True).start()
+                        analytics_store["memories_saved"] += 1
+                    except Exception as e:
+                        print(f"[Hindsight Save Error - Non-fatal]: {e}")
+
                 log_audit(f"Groq Direct Streaming (8b) ({tokens} tokens)", model_used="llama-3.1-8b-instant", model_alias="8B Fast Model", rationale="Instant streaming tokens", cost_usd=0.0001, is_fast_model=True)
                 resp_done = {'done': True, 'session_id': chat_session_id}
                 if updated_user_payload:
@@ -645,7 +653,7 @@ def chat():
 
         return Response(generate_stream(), mimetype="text/event-stream")
 
-    long_term = recall_memories_hindsight(user_message)
+    long_term = recall_memories_hindsight(user_message, user_id)
     result = ask_cascadeflow(user_message, long_term, current_user=current_user, history_messages=history_messages)
     reply, had_error = result["reply"], result["error"]
     print(f"[FounderMind]: {reply[:120]}...")
@@ -655,7 +663,7 @@ def chat():
 
     if should_save:
         try:
-            threading.Thread(target=save_memory_hindsight, args=(f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {reply}",), daemon=True).start()
+            threading.Thread(target=save_memory_hindsight, args=(f"[{now_str()}]\nFounder: {user_message}\nFounderMind: {reply}", user_id), daemon=True).start()
         except Exception as e:
             print(f"[Hindsight Save Error - Non-fatal]: {e}")
         analytics_store["memories_saved"] += 1

@@ -811,6 +811,7 @@ def rename_chat_session(session_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route("/chat/sessions/<session_id>", methods=["DELETE"])
+@app.route("/api/chat/session/<session_id>", methods=["DELETE"])
 @login_required
 def delete_chat_session(session_id):
     try:
@@ -818,10 +819,73 @@ def delete_chat_session(session_id):
             conn.execute("DELETE FROM chat_messages WHERE session_id = ? AND user_id = ?", (session_id, session["user_id"]))
             conn.execute("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, session["user_id"]))
             conn.commit()
+            
+        threading.Thread(
+            target=save_memory_hindsight, 
+            args=(f"[DELETED SESSION]\nThe user completely deleted the chat session (ID: {session_id}). Any specific requests or context from that session should be disregarded.", session["user_id"]), 
+            daemon=True
+        ).start()
+            
         return jsonify({"status": "deleted", "id": session_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+
+@app.route("/api/chat/<int:msg_id>", methods=["PUT"])
+@login_required
+def update_chat_message(msg_id):
+    data = request.json
+    new_message = data.get("message")
+    if not new_message:
+        return jsonify({"error": "Message content required"}), 400
+        
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT message FROM chat_messages WHERE id = ? AND user_id = ?", (msg_id, session["user_id"]))
+            row = c.fetchone()
+            if not row:
+                return jsonify({"error": "Message not found"}), 404
+            
+            old_message = row["message"]
+            conn.execute("UPDATE chat_messages SET message = ? WHERE id = ? AND user_id = ?", (new_message, msg_id, session["user_id"]))
+            conn.commit()
+            
+        threading.Thread(
+            target=save_memory_hindsight, 
+            args=(f"[CORRECTION/EDIT]\nThe user corrected a previous statement.\nOld statement: {old_message}\nNew statement: {new_message}", session["user_id"]), 
+            daemon=True
+        ).start()
+            
+        return jsonify({"status": "updated", "id": msg_id, "message": new_message})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/chat/<int:msg_id>", methods=["DELETE"])
+@login_required
+def delete_chat_message(msg_id):
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT message FROM chat_messages WHERE id = ? AND user_id = ?", (msg_id, session["user_id"]))
+            row = c.fetchone()
+            if not row:
+                return jsonify({"error": "Message not found"}), 404
+                
+            old_message = row["message"]
+            conn.execute("DELETE FROM chat_messages WHERE id = ? AND user_id = ?", (msg_id, session["user_id"]))
+            conn.commit()
+            
+        threading.Thread(
+            target=save_memory_hindsight, 
+            args=(f"[DELETED]\nThe user deleted the following statement. Disregard it: {old_message}", session["user_id"]), 
+            daemon=True
+        ).start()
+            
+        return jsonify({"status": "deleted", "id": msg_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/chat/history", methods=["GET"])
 @login_required
